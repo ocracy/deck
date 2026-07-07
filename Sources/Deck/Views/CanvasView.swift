@@ -23,7 +23,8 @@ final class CanvasKeyController: ObservableObject {
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let consumed = MainActor.assumeIsolated { () -> Bool in
-                guard let self, self.enabled else { return false }
+                guard let self else { return false }
+                if !self.enabled { NSLog("[DeckDBG] monitor: disabled"); return false }
                 let responder = NSApp.keyWindow?.firstResponder
                 if responder is NSTextView || responder is NSTextField { return false }
                 if responder is LocalProcessTerminalView { return false }
@@ -75,6 +76,7 @@ struct CanvasView: View {
     @State private var renameText = ""
     @FocusState private var renameFocused: Bool
     @State private var searchOpen = false
+    @State private var showAISheet = false
 
     @StateObject private var keys = CanvasKeyController()
 
@@ -144,8 +146,26 @@ struct CanvasView: View {
                                            tabStore: tabStore, pm: pm, resume: opts)
                 }
             }
+            .sheet(isPresented: $showAISheet) {
+                AIPromptSheet { note in
+                    ClaudeTabLauncher.open(project: liveProject, workspace: workspace,
+                                           tabStore: tabStore, pm: pm,
+                                           customName: "AI Kurulum",
+                                           initialPrompt: DeckFileService.aiPrompt(for: liveProject, note: note))
+                }
+            }
         }
         .clipped()
+        // Menü fallback'leri: NSEvent monitörü tuşu tüketirse menü hiç tetiklenmez;
+        // tetiklenirse (monitör devre dışı/es geçmiş) aynı işi buradan yaparız.
+        .onReceive(NotificationCenter.default.publisher(for: .deckDeleteSelection)) { _ in
+            guard keyboardEnabled, !selectedIDs.isEmpty else { return }
+            deleteItems(selectedIDs)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .deckSearchCanvas)) { _ in
+            guard keyboardEnabled else { return }
+            searchOpen = true
+        }
         .onAppear {
             keys.enabled = keyboardEnabled
             keys.onKey = { handleKey($0) }
@@ -250,10 +270,7 @@ struct CanvasView: View {
     }
 
     private func createWithAI() {
-        ClaudeTabLauncher.open(project: liveProject, workspace: workspace,
-                               tabStore: tabStore, pm: pm,
-                               customName: "AI Kurulum",
-                               initialPrompt: DeckFileService.aiPrompt(for: liveProject))
+        showAISheet = true
     }
 
     /// Mevcut ikonlarla çakışmayan ilk boş yuva (görünür katmanda).
@@ -848,6 +865,7 @@ struct CanvasView: View {
     }
 
     private func deleteItems(_ ids: Set<UUID>) {
+        NSLog("[DeckDBG] deleteItems çağrıldı: %d öğe", ids.count)
         var proj = liveProject
         var toDelete = ids
         // Klasör silinirse çocukları köke bırak.
@@ -869,9 +887,16 @@ struct CanvasView: View {
                 workspace.closeTab(tab.id, in: project.id)
             }
         }
+        let removed = proj.items.filter { toDelete.contains($0.id) }
         proj.items.removeAll { toDelete.contains($0.id) }
         store.updateProject(proj)
         selectedIDs = []
+
+        // deck.json'dan da düşür — yoksa bir sonraki sync silinenleri diriltir.
+        let path = proj.path
+        Task.detached(priority: .utility) {
+            DeckFileService.removeEntries(matching: removed, projectPath: path)
+        }
     }
 
     private func claudeItemID(in proj: Project) -> UUID {
@@ -894,6 +919,13 @@ struct CanvasView: View {
             var updated = item
             updated.name = trimmed
             store.upsertItem(updated, in: project.id)
+            // deck.json'daki adı da taşı — yoksa eski adla ikon türer.
+            let path = liveProject.path
+            let old = item.name
+            Task.detached(priority: .utility) {
+                DeckFileService.renameEntry(oldName: old, newName: trimmed, kind: item.kind,
+                                            mode: item.mode, projectPath: path)
+            }
         }
         renamingItemID = nil
         renameText = ""
@@ -916,6 +948,7 @@ struct CanvasView: View {
     // MARK: - Klavye
 
     private func handleKey(_ event: NSEvent) -> Bool {
+        NSLog("[DeckDBG] handleKey keyCode=%d chars=%@ sel=%d", event.keyCode, event.charactersIgnoringModifiers ?? "-", selectedIDs.count)
         let cmd = event.modifierFlags.contains(.command)
         let chars = event.charactersIgnoringModifiers?.lowercased() ?? ""
 
@@ -974,6 +1007,56 @@ struct CanvasView: View {
         }
         selectedIDs = [item.id]
         doubleClick(item)
+    }
+}
+
+// MARK: - AI ile Oluştur — opsiyonel yönlendirme notu
+
+private struct AIPromptSheet: View {
+    let onStart: (String?) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var note = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                ClaudeIconView(size: 30)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("AI ile Oluştur")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Claude projeyi tarar, servis ve komutları deck.json'a yazar; Deck ikonlara çevirir.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Claude'a not (opsiyonel)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField("ör. sadece backend servislerine odaklan, testleri ekleme…",
+                          text: $note, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(2...4)
+                    .focused($focused)
+            }
+
+            HStack {
+                Spacer()
+                Button("Vazgeç") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Başlat") {
+                    dismiss()
+                    onStart(note.isEmpty ? nil : note)
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(18)
+        .frame(width: 440)
+        .onAppear { focused = true }
     }
 }
 

@@ -146,44 +146,133 @@ enum DeckFileService {
         return CGPoint(x: 120, y: 120)
     }
 
+    // MARK: - Silme / yeniden adlandırma geri-yazımı
+
+    /// Canvas'tan silinen öğeleri deck.json'dan da düşürür — yoksa bir sonraki
+    /// sync (dosya değişimi / açılış) silinen ikonları diriltir.
+    static func removeEntries(matching removed: [CanvasItem], projectPath: String) {
+        let url = URL(fileURLWithPath: (projectPath as NSString).expandingTildeInPath)
+            .appendingPathComponent("deck.json")
+        guard let data = try? Data(contentsOf: url),
+              var decoded = try? JSONDecoder().decode(FileFormat.self, from: data) else { return }
+
+        var keys: Set<String> = []
+        var removedFolders: Set<String> = []
+        for item in removed {
+            switch item.kind {
+            case .folder: removedFolders.insert(item.name.lowercased())
+            case .claude: continue
+            default: keys.insert(entryKey(kind: item.kind, mode: item.mode, name: item.name))
+            }
+        }
+
+        let before = decoded.items.count
+        decoded.items.removeAll { fi in
+            guard let (kind, mode) = mapKind(fi.kind) else { return false }
+            return keys.contains(entryKey(kind: kind, mode: mode, name: fi.name))
+        }
+        // Silinen klasörün adı dosyada kalırsa sync klasörü yeniden yaratır.
+        for idx in decoded.items.indices {
+            if let f = decoded.items[idx].folder, removedFolders.contains(f.lowercased()) {
+                decoded.items[idx].folder = nil
+            }
+        }
+        guard decoded.items.count != before || !removedFolders.isEmpty else { return }
+        write(decoded, to: url)
+    }
+
+    /// Canvas'ta yeniden adlandırılan öğeyi dosyada da izler — yoksa eski
+    /// adla yeni bir ikon türer.
+    static func renameEntry(oldName: String, newName: String, kind: ItemKind,
+                            mode: TerminalMode?, projectPath: String) {
+        let url = URL(fileURLWithPath: (projectPath as NSString).expandingTildeInPath)
+            .appendingPathComponent("deck.json")
+        guard let data = try? Data(contentsOf: url),
+              var decoded = try? JSONDecoder().decode(FileFormat.self, from: data) else { return }
+        let key = entryKey(kind: kind, mode: mode, name: oldName)
+        var changed = false
+        for idx in decoded.items.indices {
+            guard let (k, m) = mapKind(decoded.items[idx].kind),
+                  entryKey(kind: k, mode: m, name: decoded.items[idx].name) == key else { continue }
+            decoded.items[idx].name = newName
+            changed = true
+        }
+        // Klasör adı değiştiyse folder alanlarını da taşı.
+        if kind == .folder {
+            for idx in decoded.items.indices
+            where decoded.items[idx].folder?.lowercased() == oldName.lowercased() {
+                decoded.items[idx].folder = newName
+                changed = true
+            }
+        }
+        if changed { write(decoded, to: url) }
+    }
+
+    private static func entryKey(kind: ItemKind, mode: TerminalMode?, name: String) -> String {
+        "\(kind.rawValue)|\(mode?.rawValue ?? "-")|\(name.trimmingCharacters(in: .whitespaces).lowercased())"
+    }
+
+    private static func write(_ format: FileFormat, to url: URL) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(format) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
     // MARK: - AI prompt
 
-    /// "AI ile Oluştur" — yeni Claude sekmesine yapıştırılan, spec'i gömülü prompt.
-    static func aiPrompt(for project: Project) -> String {
-        """
-        Bu projeyi incele (package.json, composer.json, Makefile, docker-compose, README vb.) \
-        ve proje kökünde `deck.json` dosyasını oluştur ya da güncelle. Bu dosyayı Deck adlı \
-        uygulama otomatik içe aktarır: geliştirme servislerini, sık kullanılan komutları ve \
-        web adreslerini masaüstü ikonlarına çevirir.
+    /// "AI ile Oluştur" — yeni Claude sekmesine verilen görev. `note`:
+    /// kullanıcının opsiyonel yönlendirmesi ("şunlara dikkat et...").
+    static func aiPrompt(for project: Project, note: String? = nil) -> String {
+        var prompt = """
+        GÖREVİN: Bu projeyi baştan sona tarayıp geliştirme sırasında GERÇEKTEN kullanılan \
+        en mantıklı servisleri ve komutları bulmak, sonra bunları proje kökünde `deck.json` \
+        olarak yazmak. Deck uygulaması bu dosyayı otomatik içe aktarıp masaüstü ikonlarına çevirir.
 
-        FORMAT (yalnız bu alanlar; konum bilgisi YOK — kullanıcı ikonları ekranda kendisi dizer):
+        NASIL TARARSIN:
+        - Kökü VE alt dizinleri gez: backend/, frontend/, api/, apps/*, packages/* gibi monorepo yapıları dahil.
+        - Kaynaklar: package.json "scripts" (dev/start/watch/build), composer.json, artisan komutları \
+        (serve, horizon, queue:work, reverb:start, schedule:work), Makefile hedefleri, docker-compose \
+        servisleri, Procfile, README kurulum bölümleri.
+        - Portları gerçek konfigürasyondan çıkar (vite.config, .env PORT/APP_URL, next.config...). \
+        Varsayılanlar: Vite 5173, Next/Nuxt 3000, Astro 4321, Laravel serve 8000, Reverb 8080, ngrok panel 4040.
 
-        ```json
-        {
-          "items": [
-            {"kind": "service", "name": "Frontend", "command": "npm run dev", "port": 5173, "folder": "Servisler", "autoStart": false},
-            {"kind": "service", "name": "Backend", "command": "php artisan serve", "port": 8000, "cwd": "backend", "folder": "Servisler"},
-            {"kind": "command", "name": "Optimize", "command": "php artisan optimize"},
-            {"kind": "shell", "name": "Kök Terminal"},
-            {"kind": "web", "name": "Önizleme", "url": "http://localhost:5173"},
-            {"kind": "service", "name": "Özel Renk", "command": "...", "icon": {"symbol": "server.rack", "isEmoji": false, "colorHex": "#5E8DF7"}}
-          ]
-        }
-        ```
+        NE ÜRETİRSİN:
+        - "service" → sürekli çalışanlar: dev sunucuları (npm run dev, php artisan serve), worker'lar \
+        (php artisan horizon, queue:work), websocket (reverb:start), docker compose up. \
+        İlişkili servisleri "folder" ile grupla (ör. "Servisler", "Workers"). \
+        autoStart'ı yalnız her gün ilk iş açılanlara ver.
+        - "command" → tek seferlik işler: php artisan optimize, php artisan migrate, npm run build, \
+        composer install, test komutu.
+        - "web" → gerçekten var olan lokal URL'ler: uygulama, /horizon paneli, /telescope, Mailpit.
+        - "shell" → yalnız kökten farklı, sık girilen bir dizin varsa (ör. backend/).
+        - "cwd" → komut kökten çalışmıyorsa göreli dizin; kökse hiç yazma.
+
+        İKON SEÇİMİ — her öğeye şu setten uygun ikonu ver \
+        (format: "icon": {"symbol": "...", "isEmoji": false, "colorHex": "#..."}):
+        - frontend dev sunucu: "play.display" #5E8DF7 · backend API: "server.rack" #3DDC84
+        - worker/queue: "gearshape.2.fill" #E8874B · websocket: "dot.radiowaves.left.and.right" #B57BEE
+        - docker/veritabanı: "shippingbox.fill" #38BDF8 · build: "hammer.fill" #E8B84B
+        - optimize/temizlik: "sparkles" #B57BEE · migrate: "cylinder.split.1x2" #8E8E93
+        - test: "checkmark.seal.fill" #3DDC84 · web panel: "globe" #38BDF8 · tünel/ngrok: "network" #E8874B
+
+        FORMAT (konum bilgisi YOK — yerleşimi Deck yapar):
+        {"items":[
+          {"kind":"service","name":"Frontend","command":"npm run dev","port":5173,"cwd":"frontend","folder":"Servisler","icon":{"symbol":"play.display","isEmoji":false,"colorHex":"#5E8DF7"}},
+          {"kind":"command","name":"Optimize","command":"php artisan optimize","icon":{"symbol":"sparkles","isEmoji":false,"colorHex":"#B57BEE"}},
+          {"kind":"web","name":"Uygulama","url":"http://localhost:8000","icon":{"symbol":"globe","isEmoji":false,"colorHex":"#38BDF8"}}
+        ]}
 
         KURALLAR:
-        - kind değerleri: service (kalıcı, start/stop), command (tek seferlik), shell (dizinde terminal), web (URL).
-        - service'lerde biliniyorsa port yaz (Vite 5173, Next 3000, Astro 4321, Laravel 8000, Reverb 8080 ...); \
-        port readiness kontrolünde kullanılır.
-        - cwd proje köküne GÖRELİ ya da mutlak olabilir; kökse hiç yazma.
-        - folder yalnız service'lerde çalışır; ilişkili servisleri aynı klasör adında grupla.
-        - icon isteğe bağlı: SF Symbol adı (isEmoji=false) veya tek emoji (isEmoji=true) + hex renk.
-        - Var olan deck.json'daki öğeleri koru; yalnız gerekli değişikliği yap. Deck isme göre eşler: \
+        - Az ve öz: dosyalara dayanmayan, çalışacağından emin olmadığın komut EKLEME.
+        - Var olan deck.json içeriğini koru; yalnız gerekeni ekle/güncelle. Deck isme göre eşler — \
         isim değiştirmek yeni ikon yaratır.
-        - Çalıştırılabilir gerçek komutlar yaz (README'de doğrula), tahmin ettiklerini kısaca belirt.
-
-        Dosyayı yazdıktan sonra eklediğin öğeleri tek satırlık maddelerle özetle. \
-        Benden yeni servis/komut ekleme isteği gelirse aynı dosyayı güncellemen yeterli — Deck değişikliği otomatik alır.
+        - Bitince eklediklerini tek satırlık maddelerle özetle. Sonraki isteklerimde bu dosyayı \
+        güncellemen yeterli; Deck değişikliği otomatik alır.
         """
+        if let note = note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+            prompt += "\n\nKULLANICI NOTU (bunlara öncelik ver):\n\(note)"
+        }
+        return prompt
     }
 }

@@ -12,6 +12,10 @@ extension Notification.Name {
     static let deckCloseActiveTab = Notification.Name("Deck.CloseActiveTab")
     /// ⌘1..9 — sekme seç; `object: Int` (1...9).
     static let deckSelectTab = Notification.Name("Deck.SelectTab")
+    /// ⌘⌫ — canvas'ta seçili öğeleri sil (menü fallback'i).
+    static let deckDeleteSelection = Notification.Name("Deck.DeleteSelection")
+    /// ⌘P — canvas arama paleti (menü fallback'i).
+    static let deckSearchCanvas = Notification.Name("Deck.SearchCanvas")
 }
 
 // MARK: - Router
@@ -77,6 +81,18 @@ struct DeckApp: App {
                     NotificationCenter.default.post(name: .deckCloseActiveTab, object: nil)
                 }
                 .keyboardShortcut("w", modifiers: .command)
+
+                Divider()
+
+                Button("Öğe Ara") {
+                    NotificationCenter.default.post(name: .deckSearchCanvas, object: nil)
+                }
+                .keyboardShortcut("p", modifiers: .command)
+
+                Button("Seçilenleri Sil") {
+                    NotificationCenter.default.post(name: .deckDeleteSelection, object: nil)
+                }
+                .keyboardShortcut(.delete, modifiers: .command)
 
                 Divider()
 

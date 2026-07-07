@@ -161,7 +161,8 @@ struct ProjectView: View {
         guard let mtime else { return }
         if !force, mtime == deckJSONMtime { return }
         deckJSONMtime = mtime
-        DeckFileService.sync(project: project, store: store)
+        let r = DeckFileService.sync(project: project, store: store)
+        NSLog("[DeckDBG] deck.json sync force=%d eklenen=%d güncellenen=%d", force ? 1 : 0, r.added, r.updated)
     }
 
     // MARK: - Üst bar
