@@ -73,4 +73,4 @@ zip -qry Deck.zip "${APP}" INSTALL.txt
 rm -f INSTALL.txt
 
 SIZE=$(du -h Deck.zip | cut -f1)
-echo "✓ Deck.zip hazır (${SIZE}) — mimari: 20 20 12 61 79 80 81 701 702 33 98 100 204 250 395 398 399 400uname -m)"
+echo "✓ Deck.zip hazır (${SIZE}) — mimari: $(uname -m)"
