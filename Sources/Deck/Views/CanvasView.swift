@@ -24,10 +24,13 @@ final class CanvasKeyController: ObservableObject {
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let consumed = MainActor.assumeIsolated { () -> Bool in
                 guard let self else { return false }
-                if !self.enabled { NSLog("[DeckDBG] monitor: disabled"); return false }
+                if !self.enabled { return false }
                 let responder = NSApp.keyWindow?.firstResponder
                 if responder is NSTextView || responder is NSTextField { return false }
-                if responder is LocalProcessTerminalView { return false }
+                // Terminal odaklıysa bile: enabled == workspace kapalı demek,
+                // yani terminal GİZLİ — tuşların sahibi canvas'tır. (Gizli
+                // terminale odak bırakmak Enter/kısayolları öldürüyordu;
+                // ProjectView kapanışta odağı bırakır, bu ikinci emniyet.)
                 return self.onKey?(event) ?? false
             }
             return consumed ? nil : event

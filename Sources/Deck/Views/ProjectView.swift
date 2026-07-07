@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import SwiftTerm
 
 // MARK: - Claude sekme aç/kapat yardımcıları (CanvasView + ProjectView ortak)
 
@@ -131,6 +133,17 @@ struct ProjectView: View {
         .onReceive(deckJSONTimer) { _ in
             guard isActive else { return }
             syncDeckJSON(force: false)
+        }
+        // Workspace kapanınca odağı gizli terminalden al — yoksa canvas
+        // kısayolları ölür ve tuşlar görünmez Claude'a akar.
+        .onChange(of: isWorkspaceOpen) { _, open in
+            if !open {
+                DispatchQueue.main.async {
+                    if NSApp.keyWindow?.firstResponder is LocalProcessTerminalView {
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                    }
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .deckToggleWorkspace)) { _ in
             guard isActive else { return }
