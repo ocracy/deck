@@ -7,7 +7,7 @@
 - **Proje** = isim + dizin + masaüstü canvas'ı. Uygulama birden fazla proje yönetir.
 - Her projenin **masaüstü ekranı** vardır: kullanıcı ikonları serbestçe sürükleyip istediği yere koyar (klasörleme yok).
 - Her projenin **workspace**'i vardır: üstte sekmeler olan tam ekran alan. Terminal, Claude ve Web sekmeleri burada yaşar.
-- Her şey **tmux** üzerinde çalışır → uygulama kapansa bile servisler ve Claude oturumları yaşar; tekrar açınca sekmeler geri gelir.
+- **Claude sekmeleri tmux üzerinde** çalışır → uygulama kapansa bile yaşar; tekrar açınca sekmeler geri gelir. Servis/shell/oneshot terminalleri doğrudan PTY'de çalışır (SwiftTerm scrollback + exit code tespiti için) ve uygulama kapanırken temiz kapatılır.
 
 ## İkon (CanvasItem) Türleri
 
@@ -39,20 +39,21 @@ enum ServiceStatus { case stopped, starting, running, stopping, crashed }  // ru
 
 Şema: `{"version": 1, "projects": [...]}`. Bilinmeyen alanlar decode'da default ile geçer.
 
-## tmux Oturum Adlandırma
+## tmux (yalnız Claude sekmeleri)
 
-- Servis: `deck-svc-<item-uuid-ilk8>`
-- Claude: `deck-cl-<proj-uuid-ilk8>-<epoch>`
-- Shell/oneshot: `deck-sh-<rastgele8>` (oneshot kalıcı olmak zorunda değil ama aynı altyapı)
+- Sabit socket: `-S /tmp/deck-tmux-<uid>.sock` (`-L` KULLANMA — GUI launchd ile login shell farklı TMUX_TMPDIR görür).
+- Minimal config `deck-tmux.conf`: status off, mouse off, screen-256color + RGB, escape-time 0, history 50000, set-clipboard off, focus-events off.
+- Oturum adı: sekme UUID'si; metadata tmux user option'ları ile: `@deck_project`, `@deck_num`, `@deck_name`, `@claude_sid`.
+- Oluştur-veya-bağlan tek komut: `new-session -A -D -s <ad> -x <cols> -y <rows> -e K=V ... '<inner>'` (`zsh -l -i -c "exec ..."` içinde).
+- Sekme başlığı: `list-panes -a -F '#{session_name}\t#{pane_title}'` (Claude OSC title set eder).
+- Scroll: SwiftTerm scrollback'i tmux'ta boştur → NSEvent wheel monitörü `copy-mode -e` + `send-keys -X scroll-up/down` sürer.
 
-Uygulama açılışında `tmux list-sessions` ile `deck-` öneklileri keşfet → servis durumları ve açık Claude/shell sekmeleri geri gelir. Servis durumu: session var + pane_dead=0 → running (port varsa port açık olana kadar starting); pane_dead=1 → crashed.
+## Servis Yaşam Döngüsü (doğrudan PTY, stoker deseni)
 
-## Servis Yaşam Döngüsü
-
-- start: `tmux new-session -d -s <s> -c <cwd>` + `remain-on-exit on` + komutu `/bin/zsh -l -i -c` ile çalıştır (login+interactive şart — PATH/alias için).
-- stop: pane'e Ctrl+C → 3sn → SIGTERM → 3sn → kill-session.
-- restart: stop + start. KILL PORT: `lsof -ti tcp:<port> | xargs kill -9`.
-- Uygulama kapanınca servisler ÖLDÜRÜLMEZ (tmux'ta yaşar); kullanıcı isterse ikondan durdurur.
+- Spawn: `/bin/zsh -l -i -c "stty cols C rows R 2>/dev/null; cd '<cwd>' && <cmd>"`; env: PATH snapshot (`zsh -l -i -c 'print -rn -- $PATH'` bir kere), TERM=xterm-256color, COLORTERM=truecolor, TERM_PROGRAM=Deck, CLAUDE_CODE_NO_FLICKER=0, COLUMNS/LINES.
+- stop: PTY'ye 0x03 → 3sn → SIGTERM → 3sn → SIGKILL. Uygulama çıkışında terminateAllSync (killpg; tmux-backed hariç).
+- Readiness: port varsa 0.3sn TCP connect poll (100ms timeout, 30sn'de vazgeç), yoksa 1.5sn grace → running.
+- KILL PORT: `lsof -ti tcp:<port> | xargs kill -9`. Harici çalışan servis tespiti: stopped iken port bağlıysa `externalRunning`.
 
 ## Claude Entegrasyonu
 

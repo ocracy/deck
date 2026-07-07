@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // MARK: - Icon
 
@@ -100,7 +101,48 @@ struct Project: Codable, Equatable, Identifiable, Hashable {
 // MARK: - Runtime (persist edilmez)
 
 enum ServiceStatus: Equatable {
-    case stopped, starting, running, stopping, crashed
+    case stopped, starting, running, externalRunning, stopping
+    case crashed(exitCode: Int32)
+
+    var isRunning: Bool {
+        switch self {
+        case .running, .starting, .stopping, .externalRunning: return true
+        case .stopped, .crashed: return false
+        }
+    }
+
+    /// Deck'in kendi PTY'sinde mi çalışıyor (external değil)?
+    var isOwnedByDeck: Bool {
+        switch self {
+        case .running, .starting, .stopping: return true
+        default: return false
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .running: return .green
+        case .externalRunning: return Color(red: 0.55, green: 0.85, blue: 0.55)
+        case .starting, .stopping: return .yellow
+        case .stopped: return .gray
+        case .crashed: return .red
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .stopped: return "durduruldu"
+        case .starting: return "başlıyor"
+        case .running: return "çalışıyor"
+        case .externalRunning: return "dışarıda çalışıyor"
+        case .stopping: return "durduruluyor"
+        case .crashed(let code): return "çöktü (\(code))"
+        }
+    }
+}
+
+enum ClaudeAttention: Equatable {
+    case working, waiting
 }
 
 enum TabKind: Equatable {
@@ -115,20 +157,44 @@ struct WorkspaceTab: Identifiable, Equatable {
     var tmuxSession: String?
     var itemID: UUID?
     var url: String?
+    var number: Int?            // claude sekme numarası ("Claude N")
+    var customName: String?     // kullanıcının verdiği ad (pane title'ı ezer)
 
-    init(kind: TabKind, title: String, tmuxSession: String? = nil, itemID: UUID? = nil, url: String? = nil) {
-        self.id = UUID()
+    init(id: UUID = UUID(), kind: TabKind, title: String, tmuxSession: String? = nil,
+         itemID: UUID? = nil, url: String? = nil, number: Int? = nil, customName: String? = nil) {
+        self.id = id
         self.kind = kind
         self.title = title
         self.tmuxSession = tmuxSession
         self.itemID = itemID
         self.url = url
+        self.number = number
+        self.customName = customName
     }
 }
 
 /// ~/.claude/projects altından keşfedilen geçmiş Claude oturumu.
 struct ClaudeSession: Identifiable, Equatable {
-    let id: String          // sessionId
+    let id: String          // sessionId (uuid)
     var summary: String
     var lastActivity: Date
+    var fileSizeBytes: Int64
+}
+
+// MARK: - Renk yardımcıları
+
+extension Color {
+    init(hex: String) {
+        var s = hex.trimmingCharacters(in: .whitespaces)
+        if s.hasPrefix("#") { s.removeFirst() }
+        var v: UInt64 = 0
+        Scanner(string: s).scanHexInt64(&v)
+        self.init(red: Double((v >> 16) & 0xFF) / 255,
+                  green: Double((v >> 8) & 0xFF) / 255,
+                  blue: Double(v & 0xFF) / 255)
+    }
+}
+
+extension IconSpec {
+    var color: Color { Color(hex: colorHex) }
 }
