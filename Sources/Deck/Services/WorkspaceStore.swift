@@ -8,6 +8,9 @@ final class WorkspaceStore: ObservableObject {
     @Published var tabs: [UUID: [WorkspaceTab]] = [:]
     @Published var activeTab: [UUID: UUID] = [:]
     @Published var workspaceOpen: [UUID: Bool] = [:]
+    /// Servis paneli: workspace'ten ayrı, yalnız servis terminallerini gösterir.
+    @Published var servicePanelOpen: [UUID: Bool] = [:]
+    @Published var activeService: [UUID: UUID] = [:]
 
     func tabs(for projectID: UUID) -> [WorkspaceTab] {
         tabs[projectID] ?? []
@@ -100,7 +103,18 @@ final class WorkspaceStore: ObservableObject {
         }
     }
 
+    /// Workspace ile servis paneli aynı anda açık olmaz.
     func openWorkspace(_ projectID: UUID, _ open: Bool) {
         workspaceOpen[projectID] = open
+        if open { servicePanelOpen[projectID] = false }
+    }
+
+    func openServicePanel(_ projectID: UUID, _ open: Bool) {
+        servicePanelOpen[projectID] = open
+        if open { workspaceOpen[projectID] = false }
+    }
+
+    func selectService(_ itemID: UUID, in projectID: UUID) {
+        activeService[projectID] = itemID
     }
 }

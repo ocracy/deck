@@ -89,6 +89,10 @@ struct ProjectView: View {
         workspace.workspaceOpen[project.id] ?? false
     }
 
+    private var isServicePanelOpen: Bool {
+        workspace.servicePanelOpen[project.id] ?? false
+    }
+
     private var isActive: Bool {
         router.selectedProjectID == project.id
     }
@@ -105,11 +109,15 @@ struct ProjectView: View {
             Divider().overlay(Color.white.opacity(0.06))
             ZStack {
                 CanvasView(project: project,
-                           keyboardEnabled: isActive && !isWorkspaceOpen,
+                           keyboardEnabled: isActive && !isWorkspaceOpen && !isServicePanelOpen,
                            store: store,
                            pm: pm,
                            workspace: workspace,
                            tabStore: tabStore)
+                // Servis paneli: yalnız servis terminalleri, stop/restart kontrolleriyle.
+                ServicePanelView(project: project, workspace: workspace, pm: pm)
+                    .opacity(isServicePanelOpen ? 1 : 0)
+                    .allowsHitTesting(isServicePanelOpen)
                 // Workspace her zaman mount kalır; terminal/web içerikleri yaşar.
                 WorkspaceView(project: project,
                               workspace: workspace,
@@ -134,16 +142,13 @@ struct ProjectView: View {
             guard isActive else { return }
             syncDeckJSON(force: false)
         }
-        // Workspace kapanınca odağı gizli terminalden al — yoksa canvas
+        // Workspace/panel kapanınca odağı gizli terminalden al — yoksa canvas
         // kısayolları ölür ve tuşlar görünmez Claude'a akar.
         .onChange(of: isWorkspaceOpen) { _, open in
-            if !open {
-                DispatchQueue.main.async {
-                    if NSApp.keyWindow?.firstResponder is LocalProcessTerminalView {
-                        NSApp.keyWindow?.makeFirstResponder(nil)
-                    }
-                }
-            }
+            if !open { releaseTerminalFocus() }
+        }
+        .onChange(of: isServicePanelOpen) { _, open in
+            if !open { releaseTerminalFocus() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .deckToggleWorkspace)) { _ in
             guard isActive else { return }
@@ -169,13 +174,20 @@ struct ProjectView: View {
         }
     }
 
+    private func releaseTerminalFocus() {
+        DispatchQueue.main.async {
+            if NSApp.keyWindow?.firstResponder is LocalProcessTerminalView {
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        }
+    }
+
     private func syncDeckJSON(force: Bool) {
         let mtime = DeckFileService.modificationDate(for: project)
         guard let mtime else { return }
         if !force, mtime == deckJSONMtime { return }
         deckJSONMtime = mtime
-        let r = DeckFileService.sync(project: project, store: store)
-        NSLog("[DeckDBG] deck.json sync force=%d eklenen=%d güncellenen=%d", force ? 1 : 0, r.added, r.updated)
+        DeckFileService.sync(project: project, store: store)
     }
 
     // MARK: - Üst bar
@@ -202,12 +214,24 @@ struct ProjectView: View {
             Spacer()
 
             if runningServiceCount > 0 {
-                HStack(spacing: 5) {
-                    Circle().fill(Color.green).frame(width: 7, height: 7)
-                    Text("\(runningServiceCount) servis çalışıyor")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.green)
+                Button {
+                    workspace.openServicePanel(project.id, !isServicePanelOpen)
+                } label: {
+                    HStack(spacing: 5) {
+                        Circle().fill(Color.green).frame(width: 7, height: 7)
+                        Text("\(runningServiceCount) servis çalışıyor")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.green)
+                        Image(systemName: isServicePanelOpen ? "chevron.down" : "chevron.up")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.green.opacity(0.7))
+                    }
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.green.opacity(isServicePanelOpen ? 0.18 : 0.10)))
                 }
+                .buttonStyle(.plain)
+                .help("Servis panelini aç/kapat")
                 .padding(.trailing, 6)
             }
 

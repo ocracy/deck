@@ -634,17 +634,14 @@ struct CanvasView: View {
         }
     }
 
+    /// Servisler workspace'e SEKME OLARAK GİRMEZ — kendi panellerinde yaşarlar
+    /// (sekme kapatma ≠ servis durdurma karışıklığını kökten kaldırır).
     private func openServiceTab(_ item: CanvasItem, startIfStopped: Bool) {
         if startIfStopped, !pm.status(of: item.id).isRunning {
             pm.startService(item, project: liveProject)
         }
-        if let tab = workspace.tabs(for: project.id).first(where: { $0.kind == .service && $0.itemID == item.id }) {
-            workspace.select(tab.id, in: project.id)
-        } else {
-            workspace.addTab(WorkspaceTab(kind: .service, title: item.name, itemID: item.id),
-                             to: project.id, activate: true)
-        }
-        workspace.openWorkspace(project.id, true)
+        workspace.selectService(item.id, in: project.id)
+        workspace.openServicePanel(project.id, true)
     }
 
     private func runOneshot(_ item: CanvasItem) {
@@ -899,7 +896,6 @@ struct CanvasView: View {
     }
 
     private func deleteItems(_ ids: Set<UUID>) {
-        NSLog("[DeckDBG] deleteItems çağrıldı: %d öğe", ids.count)
         var proj = liveProject
         var toDelete = ids
         // Klasör silinirse çocukları köke bırak.
@@ -982,7 +978,6 @@ struct CanvasView: View {
     // MARK: - Klavye
 
     private func handleKey(_ event: NSEvent) -> Bool {
-        NSLog("[DeckDBG] handleKey keyCode=%d chars=%@ sel=%d", event.keyCode, event.charactersIgnoringModifiers ?? "-", selectedIDs.count)
         let cmd = event.modifierFlags.contains(.command)
         let chars = event.charactersIgnoringModifiers?.lowercased() ?? ""
 
