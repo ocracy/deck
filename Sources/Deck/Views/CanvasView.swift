@@ -112,6 +112,10 @@ struct CanvasView: View {
                         .zIndex(10)
                 }
             }
+            // Sürükleme ölçümü SABİT uzayda yapılmalı: ikonun kendi (local)
+            // uzayı ikonla birlikte kaydığı için translation geri besleme
+            // döngüsüne girer — "ileri geri kayma" glitch'inin kaynağı.
+            .coordinateSpace(name: "deckCanvas")
             .sheet(item: $editor) { ctx in
                 ItemEditorSheet(project: liveProject, item: ctx.item, presetKind: ctx.preset) { saved in
                     var out = saved
@@ -167,7 +171,7 @@ struct CanvasView: View {
                 renamingItemID = nil
             }
             .gesture(
-                SpatialTapGesture(count: 2).onEnded { value in
+                SpatialTapGesture(count: 2, coordinateSpace: .named("deckCanvas")).onEnded { value in
                     editor = EditorContext(item: nil, spawn: value.location)
                 }
             )
@@ -177,7 +181,7 @@ struct CanvasView: View {
 
     /// Boş alanda sürükleme = kutu seçim.
     private var marqueeGesture: some Gesture {
-        DragGesture(minimumDistance: 6)
+        DragGesture(minimumDistance: 6, coordinateSpace: .named("deckCanvas"))
             .onChanged { value in
                 let start = marqueeStart ?? value.startLocation
                 marqueeStart = start
@@ -486,7 +490,7 @@ struct CanvasView: View {
     /// Sürükleme anında başlar (tap gesture'ları simultaneous olduğundan
     /// double-click beklemesi ikonu geciktirmez) ve seçili grubu birlikte taşır.
     private func dragGesture(_ item: CanvasItem, canvasSize: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 3)
+        DragGesture(minimumDistance: 3, coordinateSpace: .named("deckCanvas"))
             .onChanged { value in
                 if draggingIDs.isEmpty {
                     if !selectedIDs.contains(item.id) { selectedIDs = [item.id] }
