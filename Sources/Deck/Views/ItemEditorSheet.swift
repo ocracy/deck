@@ -1,0 +1,269 @@
+import SwiftUI
+import AppKit
+
+/// Editörde sunulan öğe türleri (claude sunulmaz).
+enum ItemEditorKind: String, CaseIterable, Identifiable {
+    case service, oneshot, shell, web
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .service: return "Servis"
+        case .oneshot: return "Komut"
+        case .shell: return "Terminal"
+        case .web: return "Web"
+        }
+    }
+}
+
+struct ItemEditorSheet: View {
+    let project: Project
+    let item: CanvasItem?
+    let onSave: (CanvasItem) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var kind: ItemEditorKind
+    @State private var name: String
+    @State private var command: String
+    @State private var portText: String
+    @State private var cwd: String
+    @State private var autoStart: Bool
+    @State private var urlText: String
+    @State private var icon: IconSpec
+    @State private var iconCustomized: Bool
+    @State private var showIconPicker = false
+
+    init(project: Project,
+         item: CanvasItem?,
+         presetKind: ItemEditorKind = .service,
+         onSave: @escaping (CanvasItem) -> Void) {
+        self.project = project
+        self.item = item
+        self.onSave = onSave
+
+        let k: ItemEditorKind
+        if let item {
+            if item.kind == .web {
+                k = .web
+            } else {
+                switch item.mode ?? .shell {
+                case .service: k = .service
+                case .oneshot: k = .oneshot
+                case .shell: k = .shell
+                }
+            }
+        } else {
+            k = presetKind
+        }
+        _kind = State(initialValue: k)
+        _name = State(initialValue: item?.name ?? "")
+        _command = State(initialValue: item?.command ?? "")
+        _portText = State(initialValue: item?.port.map(String.init) ?? "")
+        _cwd = State(initialValue: item?.cwd ?? "")
+        _autoStart = State(initialValue: item?.autoStart ?? false)
+        _urlText = State(initialValue: item?.url ?? "")
+        _icon = State(initialValue: item?.icon ?? Self.defaultIcon(for: k))
+        _iconCustomized = State(initialValue: item != nil)
+    }
+
+    static func defaultIcon(for kind: ItemEditorKind) -> IconSpec {
+        switch kind {
+        case .service: return IconSpec(symbol: "server.rack", isEmoji: false, colorHex: "#3DDC84")
+        case .oneshot: return IconSpec(symbol: "bolt.fill", isEmoji: false, colorHex: "#F7B955")
+        case .shell: return .defaultTerminal
+        case .web: return .defaultWeb
+        }
+    }
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSave: Bool {
+        guard !trimmedName.isEmpty else { return false }
+        switch kind {
+        case .service, .oneshot:
+            return !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .shell:
+            return true
+        case .web:
+            return !urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(item == nil ? "Yeni Öğe" : "Öğeyi Düzenle")
+                .font(.system(size: 15, weight: .semibold))
+
+            Picker("", selection: $kind) {
+                ForEach(ItemEditorKind.allCases) { k in
+                    Text(k.label).tag(k)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            VStack(alignment: .leading, spacing: 10) {
+                row("İsim") {
+                    TextField(placeholderName, text: $name)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                row("Görsel") {
+                    Button {
+                        showIconPicker.toggle()
+                    } label: {
+                        HStack(spacing: 8) {
+                            IconView(spec: icon, size: 34)
+                            Text("Değiştir")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showIconPicker, arrowEdge: .trailing) {
+                        IconPicker(spec: $icon)
+                    }
+                }
+
+                switch kind {
+                case .service:
+                    commandRow
+                    row("Port") {
+                        TextField("opsiyonel", text: $portText)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 90)
+                        Text("hazır olma kontrolü + KILL PORT için")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    cwdRow
+                    row("") {
+                        Toggle("Uygulama açılınca otomatik başlat", isOn: $autoStart)
+                            .font(.system(size: 12))
+                    }
+                case .oneshot:
+                    commandRow
+                    cwdRow
+                case .shell:
+                    cwdRow
+                case .web:
+                    row("URL") {
+                        TextField("http://localhost:3000", text: $urlText)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                    }
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Vazgeç", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Kaydet") { save() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canSave)
+            }
+        }
+        .padding(18)
+        .frame(width: 480)
+        .onChange(of: kind) { _, newKind in
+            if !iconCustomized { icon = Self.defaultIcon(for: newKind) }
+        }
+        .onChange(of: icon) { _, newIcon in
+            if newIcon != Self.defaultIcon(for: kind) { iconCustomized = true }
+        }
+    }
+
+    // MARK: - Satırlar
+
+    private var placeholderName: String {
+        switch kind {
+        case .service: return "örn. Dev Server"
+        case .oneshot: return "örn. Optimize"
+        case .shell: return "örn. Terminal"
+        case .web: return "örn. Önizleme"
+        }
+    }
+
+    private var commandRow: some View {
+        row("Komut") {
+            TextField(kind == .service ? "npm run dev" : "php artisan optimize", text: $command)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12, design: .monospaced))
+        }
+    }
+
+    private var cwdRow: some View {
+        row("Çalışma dizini") {
+            TextField(project.path, text: $cwd)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 11, design: .monospaced))
+            Button {
+                pickDirectory()
+            } label: {
+                Image(systemName: "folder")
+            }
+            .help("Dizin seç")
+        }
+    }
+
+    private func row(_ label: String, @ViewBuilder content: () -> some View) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 100, alignment: .trailing)
+            content()
+        }
+    }
+
+    // MARK: - Aksiyonlar
+
+    private func pickDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Seç"
+        panel.directoryURL = URL(fileURLWithPath: cwd.isEmpty ? project.path : cwd)
+        if panel.runModal() == .OK, let url = panel.url {
+            cwd = url.path
+        }
+    }
+
+    private func save() {
+        var out = item ?? CanvasItem(kind: .terminal, name: "", icon: icon)
+        out.name = trimmedName
+        out.icon = icon
+
+        switch kind {
+        case .web:
+            out.kind = .web
+            out.mode = nil
+            out.command = nil
+            out.port = nil
+            out.autoStart = false
+            out.cwd = nil
+            var u = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !u.contains("://") { u = "https://" + u }
+            out.url = u
+        case .service, .oneshot, .shell:
+            out.kind = .terminal
+            out.url = nil
+            out.mode = kind == .service ? .service : (kind == .oneshot ? .oneshot : .shell)
+            let cmd = command.trimmingCharacters(in: .whitespacesAndNewlines)
+            out.command = kind == .shell ? nil : cmd
+            out.port = kind == .service ? Int(portText.trimmingCharacters(in: .whitespaces)) : nil
+            out.autoStart = kind == .service ? autoStart : false
+            let dir = cwd.trimmingCharacters(in: .whitespacesAndNewlines)
+            out.cwd = dir.isEmpty ? nil : dir
+        }
+
+        onSave(out)
+        dismiss()
+    }
+}
