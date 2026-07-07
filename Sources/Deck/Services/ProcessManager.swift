@@ -237,7 +237,9 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
         let key = tabID.uuidString
         let view = terminalView(forKey: key)
         if view.process.running { return }
-        removeStateFile(key)
+        // Reattach'te state dosyasını KORU: canlı oturumun "waiting" rozeti
+        // açılışta hemen görünmeli (startStateWatching bilerek saklıyor).
+        if existingSession == nil { removeStateFile(key) }
 
         let session = existingSession ?? key
         let expandedCwd = (project.path as NSString).expandingTildeInPath

@@ -93,6 +93,7 @@ struct DeckApp: App {
     private func bootstrap() {
         appDelegate.processManager = processManager
         appDelegate.browserManager = browserManager
+        appDelegate.projectStore = projectStore
         processManager.projectStore = projectStore
         processManager.tabStore = tabStore
 
@@ -153,6 +154,7 @@ struct RootView: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var processManager: ProcessManager?
     weak var browserManager: BrowserManager?
+    weak var projectStore: ProjectStore?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // `swift run` ile doğrudan çalıştırıldığında da pencere öne gelsin.
@@ -170,6 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        projectStore?.flushSync()
         processManager?.terminateAllSync()
         browserManager?.clearAll()
     }

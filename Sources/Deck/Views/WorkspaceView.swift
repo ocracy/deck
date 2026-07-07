@@ -47,8 +47,8 @@ struct WorkspaceView: View {
                     )
             }
             .buttonStyle(.plain)
-            .keyboardShortcut(.cancelAction)
-            .help("Masaüstüne dön (Esc)")
+            // Esc kısayolu BAĞLANMAZ: terminal odaktayken Esc Claude'a gitmeli.
+            .help("Masaüstüne dön (⌘B)")
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -94,7 +94,8 @@ struct WorkspaceView: View {
             .foregroundStyle(Color.accentColor)
         }
         .buttonStyle(.plain)
-        .keyboardShortcut("t", modifiers: .command)
+        // ⌘T yalnız CommandMenu'den gelir; gizli (opacity 0) kopyaların
+        // kısayolu gölgelemesi yanlış projede sekme açıyordu.
         .help("Yeni Claude sekmesi (⌘T)")
     }
 
@@ -394,10 +395,12 @@ struct WorkspaceView: View {
         let projectID = project.id
         workspace.closeTab(tab.id, in: projectID)
         Task {
-            let sid: String? = await Task.detached(priority: .userInitiated) {
+            let tmuxSid: String? = await Task.detached(priority: .userInitiated) {
                 guard let sessionName else { return nil }
                 return TmuxService.listSessions().first(where: { $0.name == sessionName })?.claudeSID
             }.value
+            // Oturum tmux'ta yoksa (ör. /exit ile bitti) hook'un yakaladığı sid'e düş.
+            let sid = tmuxSid ?? pm.claudeSID(for: tab.id)
             tabStore.recordClosed(ClaudeTabStore.ClosedTab(number: number,
                                                            name: name,
                                                            claudeSID: sid,

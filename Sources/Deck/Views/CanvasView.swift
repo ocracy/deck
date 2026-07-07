@@ -37,6 +37,13 @@ struct CanvasView: View {
                         out.x = p.x
                         out.y = p.y
                     }
+                    // Çalışan servisin türü/komutu değişiyorsa eski süreci
+                    // kontrolsüz bırakma — önce durdur.
+                    if let old = ctx.item, old.kind == .terminal, old.mode == .service,
+                       pm.status(of: old.id).isOwnedByDeck,
+                       old.command != out.command || out.mode != .service || out.kind != .terminal {
+                        pm.stopService(old)
+                    }
                     store.upsertItem(out, in: project.id)
                 }
             }
@@ -137,8 +144,8 @@ struct CanvasView: View {
             ZStack {
                 if isService, hoveredItemID == item.id, draggingID == nil {
                     HStack(spacing: 6) {
-                        miniButton(status.isOwnedByDeck ? "stop.fill" : "play.fill",
-                                   help: status.isOwnedByDeck ? "Durdur" : "Başlat") {
+                        miniButton(status.isRunning ? "stop.fill" : "play.fill",
+                                   help: status.isRunning ? (status == .externalRunning ? "Durdur (dış süreç)" : "Durdur") : "Başlat") {
                             pm.toggleService(item, project: project)
                         }
                         miniButton("arrow.clockwise", help: "Yeniden başlat") {
@@ -281,8 +288,8 @@ struct CanvasView: View {
             switch item.mode ?? .shell {
             case .service:
                 Button("Aç") { openServiceTab(item, startIfStopped: false) }
-                if status.isOwnedByDeck {
-                    Button("Durdur") { pm.stopService(item) }
+                if status.isRunning {
+                    Button(status == .externalRunning ? "Durdur (dış süreç)" : "Durdur") { pm.stopService(item) }
                 } else {
                     Button("Başlat") { pm.startService(item, project: project) }
                 }

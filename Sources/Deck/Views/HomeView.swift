@@ -221,6 +221,16 @@ struct HomeView: View {
             pm.closeTab(tabID: tab.id, killTmux: tab.kind == .claude)
             workspace.closeTab(tab.id, in: project.id)
         }
+        // Sekme listesine güvenme: proje hiç açılmadıysa tabs boştur ama
+        // tmux oturumları yaşıyor olabilir — yetim oturum + hayalet rozet bırakma.
+        let shortID = project.shortID
+        Task.detached(priority: .utility) {
+            for s in TmuxService.listSessions() where s.projectID == shortID {
+                TmuxService.kill(s.name)
+                let state = DeckPaths.claudeStateDir.appendingPathComponent("\(s.name).json")
+                try? FileManager.default.removeItem(at: state)
+            }
+        }
         router.closeProject(project.id)
         store.deleteProject(project.id)
     }

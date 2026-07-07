@@ -43,10 +43,12 @@ enum ClaudeTabLauncher {
         let title = sessionName.flatMap { pm.paneTitles[$0] }
         let customName = tab.customName
         Task {
-            let sid: String? = await Task.detached { () -> String? in
+            let tmuxSid: String? = await Task.detached { () -> String? in
                 guard let sessionName else { return nil }
                 return TmuxService.listSessions().first { $0.name == sessionName }?.claudeSID
             }.value
+            // Oturum tmux'ta yoksa (ör. /exit ile bitti) hook'un yakaladığı sid'e düş.
+            let sid = tmuxSid ?? pm.claudeSID(for: tab.id)
             tabStore.recordClosed(.init(number: number, name: customName, claudeSID: sid, title: title),
                                   for: projectID)
             pm.closeTab(tabID: tab.id, killTmux: true)
@@ -107,6 +109,7 @@ struct ProjectView: View {
             guard !didAppear else { return }
             didAppear = true
             workspace.adoptTmuxSessions(for: project, tabStore: tabStore)
+            pm.scanExternalServices(projects: [project])
         }
         .onReceive(NotificationCenter.default.publisher(for: .deckToggleWorkspace)) { _ in
             guard isActive else { return }

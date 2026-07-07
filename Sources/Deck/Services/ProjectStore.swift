@@ -78,6 +78,12 @@ final class ProjectStore: ObservableObject {
         writeToDisk()
     }
 
+    /// Uygulama kapanışı: debounce'ta bekleyen kayıt da diske ulaşmadan dönmez.
+    func flushSync() {
+        save()
+        Self.ioQueue.sync {}
+    }
+
     // MARK: - IO
 
     private func scheduleSave() {
