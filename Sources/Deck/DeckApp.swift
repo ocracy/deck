@@ -117,6 +117,8 @@ struct DeckApp: App {
         DispatchQueue.global(qos: .utility).async {
             HookInstaller.installIfNeeded()
         }
+        // Sessiz güncelleme kontrolü (24 saat throttle'lı).
+        Task { await UpdateChecker.shared.checkNow(force: false) }
 
         for project in projectStore.projects {
             for item in project.items

@@ -22,6 +22,8 @@ struct HomeView: View {
     @State private var deleteCandidate: Project?
     @State private var showDeleteAlert = false
     @State private var hoveredCardID: UUID?
+    @State private var showUpdatePopover = false
+    @ObservedObject private var updater = UpdateChecker.shared
 
     private static let columns = [GridItem(.adaptive(minimum: 160, maximum: 160), spacing: 20, alignment: .top)]
 
@@ -50,6 +52,8 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+
+            updateButton
         }
         .sheet(item: $sheet) { s in
             switch s {
@@ -75,6 +79,39 @@ struct HomeView: View {
         } message: { p in
             Text("\"\(p.name)\" projesi Deck'ten kaldırılacak. Diskteki dosyalara dokunulmaz.")
         }
+    }
+
+    // MARK: - Güncelleme (sağ üst)
+
+    private var updateButton: some View {
+        VStack {
+            HStack {
+                Spacer()
+                Button {
+                    showUpdatePopover = true
+                } label: {
+                    Image(systemName: updater.buttonSystemImage)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(updater.buttonTint ?? Color.secondary)
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(Color.white.opacity(0.07)))
+                        .overlay(alignment: .topTrailing) {
+                            if updater.hasAvailableUpdate {
+                                Circle().fill(Color.orange)
+                                    .frame(width: 8, height: 8)
+                                    .offset(x: 1, y: -1)
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+                .help(updater.buttonTooltip)
+                .popover(isPresented: $showUpdatePopover, arrowEdge: .bottom) {
+                    UpdateView(checker: updater)
+                }
+            }
+            Spacer()
+        }
+        .padding(14)
     }
 
     // MARK: - Boş durum

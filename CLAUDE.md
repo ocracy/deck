@@ -23,7 +23,10 @@ swift build    # hızlı derleme kontrolü (debug)
 
 - "kur", "yükle", "install et" → `./install.sh`
 - "deploy", "son halini ver", "uygulamayı çıkar" → `./dist.sh` (çıktıyı boyut+mimariyle raporla)
-- VERSION build.sh ve dist.sh'ta senkron tutulmalı.
+- "release yap", "yayınla" → VERSION'ı build.sh + dist.sh'ta artır → `./dist.sh` → commit + push → `gh release create v<VERSION> Deck.zip --title "Deck v<VERSION>" --notes "<değişiklikler>"`
+- VERSION build.sh ve dist.sh'ta senkron tutulmalı; uygulama içi güncelleyici (UpdateChecker)
+  CFBundleShortVersionString'i GitHub release tag'iyle (`v<VERSION>`) kıyaslar — repo: `ocracy/deck`,
+  release asset adı MUTLAKA `Deck.zip`.
 
 ## Klasör Yapısı
 
