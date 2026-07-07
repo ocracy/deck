@@ -70,6 +70,8 @@ struct CanvasView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var marqueeStart: CGPoint?
     @State private var marqueeRect: CGRect?
+    @State private var pressedItemID: UUID?
+    @State private var bgPressActive = false
 
     // Klasör gezinme
     @State private var currentFolderID: UUID?
@@ -189,23 +191,26 @@ struct CanvasView: View {
         LinearGradient(colors: [Color(hex: "#101018"), Color(hex: "#1A1A28")],
                        startPoint: .topLeading, endPoint: .bottomTrailing)
             .contentShape(Rectangle())
-            .onTapGesture {
-                selectedIDs = []
-                renamingItemID = nil
-            }
-            .gesture(
-                SpatialTapGesture(count: 2, coordinateSpace: .named("deckCanvas")).onEnded { value in
-                    editor = EditorContext(item: nil, spawn: value.location)
-                }
-            )
-            .simultaneousGesture(marqueeGesture)
+            .gesture(backgroundGesture)
             .contextMenu { emptyAreaMenu(size: size) }
     }
 
-    /// Boş alanda sürükleme = kutu seçim.
-    private var marqueeGesture: some Gesture {
-        DragGesture(minimumDistance: 6, coordinateSpace: .named("deckCanvas"))
+    /// Tek jest, sıfır gecikme: basar basmaz seçim temizlenir (masaüstü hissi),
+    /// hareket kutu seçime dönüşür, çift tık `clickCount` ile mouse-up'ta
+    /// yakalanır — tap-bekleme gecikmesi yok.
+    private var backgroundGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named("deckCanvas"))
             .onChanged { value in
+                if !bgPressActive {
+                    bgPressActive = true
+                    if NSApp.currentEvent?.modifierFlags.contains(.command) != true {
+                        selectedIDs = []
+                    }
+                    if renamingItemID != nil { commitPendingRename() }
+                }
+                let dx = value.location.x - value.startLocation.x
+                let dy = value.location.y - value.startLocation.y
+                guard marqueeStart != nil || abs(dx) > 4 || abs(dy) > 4 else { return }
                 let start = marqueeStart ?? value.startLocation
                 marqueeStart = start
                 marqueeRect = CGRect(x: min(start.x, value.location.x),
@@ -213,7 +218,8 @@ struct CanvasView: View {
                                      width: abs(value.location.x - start.x),
                                      height: abs(value.location.y - start.y))
             }
-            .onEnded { _ in
+            .onEnded { value in
+                bgPressActive = false
                 if let rect = marqueeRect {
                     let hits = visibleItems.filter { item in
                         rect.intersects(CGRect(x: item.x - 40, y: item.y - 46, width: 80, height: 96))
@@ -223,6 +229,8 @@ struct CanvasView: View {
                     } else {
                         selectedIDs = Set(hits)
                     }
+                } else if (NSApp.currentEvent?.clickCount ?? 1) >= 2 {
+                    editor = EditorContext(item: nil, spawn: value.startLocation)
                 }
                 marqueeStart = nil
                 marqueeRect = nil
@@ -389,9 +397,7 @@ struct CanvasView: View {
             if inside { hoveredItemID = item.id }
             else if hoveredItemID == item.id { hoveredItemID = nil }
         }
-        .onTapGesture(count: 2) { doubleClick(item) }
-        .onTapGesture { singleClick(item) }
-        .simultaneousGesture(dragGesture(item, canvasSize: canvasSize))
+        .gesture(itemGesture(item, canvasSize: canvasSize))
         .contextMenu { contextMenu(for: item, status: status) }
     }
 
@@ -497,32 +503,31 @@ struct CanvasView: View {
 
     // MARK: - Seçim + sürükleme
 
-    private func singleClick(_ item: CanvasItem) {
-        if renamingItemID != nil { commitPendingRename() }
-        if NSApp.currentEvent?.modifierFlags.contains(.command) == true {
-            if selectedIDs.contains(item.id) { selectedIDs.remove(item.id) }
-            else { selectedIDs.insert(item.id) }
-        } else {
-            selectedIDs = [item.id]
-        }
-    }
-
-    /// Sürükleme anında başlar (tap gesture'ları simultaneous olduğundan
-    /// double-click beklemesi ikonu geciktirmez) ve seçili grubu birlikte taşır.
-    private func dragGesture(_ item: CanvasItem, canvasSize: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 3, coordinateSpace: .named("deckCanvas"))
+    /// Tek birleşik jest — masaüstü hissi:
+    /// mouse-DOWN anında seçim (bekleme yok), 3pt hareketle grup sürükleme,
+    /// çift tık `clickCount` ile mouse-up'ta (tap-disambiguation gecikmesi yok).
+    private func itemGesture(_ item: CanvasItem, canvasSize: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named("deckCanvas"))
             .onChanged { value in
-                if draggingIDs.isEmpty {
-                    if !selectedIDs.contains(item.id) { selectedIDs = [item.id] }
-                    draggingIDs = selectedIDs
+                if pressedItemID != item.id {
+                    pressedItemID = item.id
+                    pressSelect(item)
                 }
+                let dx = value.translation.width
+                let dy = value.translation.height
+                if draggingIDs.isEmpty, abs(dx) < 3, abs(dy) < 3 { return }
+                if draggingIDs.isEmpty { draggingIDs = selectedIDs }
                 dragOffset = value.translation
             }
             .onEnded { value in
+                pressedItemID = nil
                 let moved = draggingIDs
                 draggingIDs = []
                 dragOffset = .zero
-                guard !moved.isEmpty else { return }
+                guard !moved.isEmpty else {
+                    releaseSelect(item)
+                    return
+                }
 
                 // Servis(ler) bir klasörün üzerine bırakıldıysa içine taşı.
                 if currentFolderID == nil,
@@ -544,6 +549,32 @@ struct CanvasView: View {
                 }
                 store.updateProject(proj)
             }
+    }
+
+    /// Mouse-down: Finder davranışı — seçili değilse hemen seç (⌘ toggle);
+    /// seçili çoklu grubun üyesiyse dokunma (grup sürüklenebilsin).
+    private func pressSelect(_ item: CanvasItem) {
+        if renamingItemID != nil { commitPendingRename() }
+        if NSApp.currentEvent?.modifierFlags.contains(.command) == true {
+            if selectedIDs.contains(item.id) { selectedIDs.remove(item.id) }
+            else { selectedIDs.insert(item.id) }
+        } else if !selectedIDs.contains(item.id) {
+            selectedIDs = [item.id]
+        }
+    }
+
+    /// Mouse-up (sürükleme olmadan): çift tık aç; tek tıkta çoklu seçim
+    /// bu öğeye daraltılır (Finder gibi).
+    private func releaseSelect(_ item: CanvasItem) {
+        let event = NSApp.currentEvent
+        if (event?.clickCount ?? 1) >= 2 {
+            doubleClick(item)
+            return
+        }
+        if event?.modifierFlags.contains(.command) != true,
+           selectedIDs.count > 1, selectedIDs.contains(item.id) {
+            selectedIDs = [item.id]
+        }
     }
 
     private func dropTargetFolder(at point: CGPoint, excluding: Set<UUID>) -> CanvasItem? {
