@@ -434,7 +434,7 @@ struct WorkspaceView: View {
         if let session = tab.tmuxSession {
             // @deck_name'e yaz ki ad, adoptTmuxSessions ile yeniden açılışta korunsun.
             let value = newName ?? ""
-            Task.detached { TmuxService.setOption(session, key: "deck_name", value: value) }
+            Task.detached { TmuxService.setOption(session, key: "@deck_name", value: value) }
         }
         renamingTabID = nil
         renameText = ""

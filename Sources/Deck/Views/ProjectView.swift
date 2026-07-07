@@ -97,7 +97,7 @@ struct ProjectView: View {
                               workspace: workspace,
                               pm: pm,
                               tabStore: tabStore,
-                              browserManager: browserManager)
+                              browser: browserManager)
                     .opacity(isWorkspaceOpen ? 1 : 0)
                     .allowsHitTesting(isWorkspaceOpen)
             }
