@@ -24,6 +24,8 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
     private var terminalViews: [String: DeckTerminalView] = [:]
     private var pendingRestart: [UUID: (item: CanvasItem, project: Project)] = [:]
     private var tabSIDs: [UUID: String] = [:]
+    private var backgroundKeys: Set<String> = []
+    private var backgroundNames: [String: String] = [:]
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
     private var lastScrollSend = Date.distantPast
@@ -210,12 +212,31 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
                           execName: nil)
     }
 
+    /// Komutu görünmez bir PTY'de çalıştırır; bitince ses + bildirim verir ve
+    /// terminali temizler. Sekme açılmaz — canvas'taki durum noktası yeter.
+    func runBackground(_ item: CanvasItem, project: Project) {
+        guard let command = item.command, !command.isEmpty else { return }
+        let key = item.id.uuidString
+        if terminalViews[key]?.process.running == true { return }
+        backgroundKeys.insert(key)
+        backgroundNames[key] = item.name
+        statuses[item.id] = .running
+        let rawCwd = (item.cwd?.isEmpty == false) ? item.cwd! : project.path
+        spawnPlain(key: key, command: command, cwd: rawCwd)
+    }
+
     func runOneshot(tabID: UUID, command: String, cwd: String) {
         let key = tabID.uuidString
         let view = terminalView(forKey: key)
         if view.process.running { return }
         let expanded = (cwd as NSString).expandingTildeInPath
         feed(key: key, ansi: "\r\n\u{1B}[2m— çalıştırılıyor: \(command) (dizin: \(expanded)) —\u{1B}[0m\r\n")
+        spawnPlain(key: key, command: command, cwd: cwd)
+    }
+
+    private func spawnPlain(key: String, command: String, cwd: String) {
+        let view = terminalView(forKey: key)
+        let expanded = (cwd as NSString).expandingTildeInPath
         let cols = max(80, view.getTerminal().cols)
         let rows = max(24, view.getTerminal().rows)
         let wrapped = "stty cols \(cols) rows \(rows) 2>/dev/null; cd \(Shell.singleQuoted(expanded)) && \(command)"
@@ -233,7 +254,8 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
     /// (adopt); değilse tab id adıyla yeni oturum yaratılır. Oturum ölmüşse
     /// `-A` inner komutu çalıştırır, yani Claude yeniden başlar.
     func startClaude(tabID: UUID, project: Project, number: Int, customName: String?,
-                     resume: ClaudeResumeOptions?, existingSession: String?) {
+                     resume: ClaudeResumeOptions?, existingSession: String?,
+                     initialPrompt: String? = nil) {
         let key = tabID.uuidString
         let view = terminalView(forKey: key)
         if view.process.running { return }
@@ -259,6 +281,8 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
         if let resume {
             command = ClaudeSessionService.resumeCommand(resume)
             tabSIDs[tabID] = resume.sessionID
+        } else if let initialPrompt, !initialPrompt.isEmpty {
+            command = "claude \(Shell.singleQuoted(initialPrompt))"
         } else {
             command = "claude"
         }
@@ -573,14 +597,16 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
 
         guard next != attention else { return }
 
-        // Bildirim yalnız waiting'e GEÇİŞTE.
+        // Bildirim yalnız waiting'e GEÇİŞTE. Ses NSSound ile doğrudan çalınır:
+        // osascript'in sesi kullanıcının bildirim ayarlarına takılıp susabiliyor.
         for (id, state) in next where state == .waiting && attention[id] != .waiting {
             let m = meta[id]
             let title = (m?.project.isEmpty == false) ? m!.project : "Deck"
+            NotificationService.playSound("Glass")
             NotificationService.notify(title: title,
                                        subtitle: m?.name ?? "",
                                        body: "Claude yanıt bekliyor",
-                                       sound: "Glass")
+                                       sound: "")
         }
         attention = next
         updateBadge()
@@ -705,6 +731,18 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
         removeStateFile(key)
         guard let uuid = UUID(uuidString: key) else { return }
         statuses[uuid] = (code == 0) ? .stopped : .crashed(exitCode: code)
+
+        // Arka plan komutu: kullanıcıya haber ver, görünmez terminali bırakma.
+        if backgroundKeys.remove(key) != nil {
+            let name = backgroundNames.removeValue(forKey: key) ?? "Komut"
+            NotificationService.playSound(code == 0 ? "Glass" : "Basso")
+            NotificationService.notify(title: name,
+                                       subtitle: "",
+                                       body: code == 0 ? "Arka plan komutu tamamlandı"
+                                                       : "Komut hatayla bitti (kod \(code))",
+                                       sound: "")
+            terminalViews.removeValue(forKey: key)
+        }
         if attention.removeValue(forKey: uuid) != nil {
             updateBadge()
         }

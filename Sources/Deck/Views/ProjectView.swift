@@ -9,7 +9,8 @@ enum ClaudeTabLauncher {
                      tabStore: ClaudeTabStore,
                      pm: ProcessManager,
                      resume: ClaudeResumeOptions? = nil,
-                     customName: String? = nil) {
+                     customName: String? = nil,
+                     initialPrompt: String? = nil) {
         let number = tabStore.nextNumber(for: project.id)
         let tabID = UUID()
         let tab = WorkspaceTab(id: tabID,
@@ -24,26 +25,37 @@ enum ClaudeTabLauncher {
                        number: number,
                        customName: customName,
                        resume: resume,
-                       existingSession: nil)
+                       existingSession: nil,
+                       initialPrompt: initialPrompt)
         workspace.openWorkspace(project.id, true)
     }
 
-    /// Claude sekmesi kapanırken @claude_sid kaydedilir ki sonradan sürdürülebilsin.
+    /// Sekme UI'dan anında düşer; arka plan temizliği finishClose'da.
     static func close(_ tab: WorkspaceTab,
                       projectID: UUID,
                       workspace: WorkspaceStore,
                       tabStore: ClaudeTabStore,
                       pm: ProcessManager) {
-        guard tab.kind == .claude, let number = tab.number else {
+        workspace.closeTab(tab.id, in: projectID)
+        guard tab.kind == .claude, tab.number != nil else {
             pm.closeTab(tabID: tab.id, killTmux: false)
-            workspace.closeTab(tab.id, in: projectID)
             return
         }
+        finishClose(tab, projectID: projectID, tabStore: tabStore, pm: pm)
+    }
+
+    /// Kapanan Claude sekmesinin sid'ini yakala (tmux → hook fallback),
+    /// resume listesine kaydet ve tmux oturumunu öldür — hepsi arka planda.
+    static func finishClose(_ tab: WorkspaceTab,
+                            projectID: UUID,
+                            tabStore: ClaudeTabStore,
+                            pm: ProcessManager) {
         let sessionName = tab.tmuxSession
-        let title = sessionName.flatMap { pm.paneTitles[$0] }
+        let number = tab.number ?? 0
         let customName = tab.customName
+        let title = sessionName.flatMap { pm.paneTitles[$0] }
         Task {
-            let tmuxSid: String? = await Task.detached { () -> String? in
+            let tmuxSid: String? = await Task.detached(priority: .userInitiated) { () -> String? in
                 guard let sessionName else { return nil }
                 return TmuxService.listSessions().first { $0.name == sessionName }?.claudeSID
             }.value
@@ -52,7 +64,6 @@ enum ClaudeTabLauncher {
             tabStore.recordClosed(.init(number: number, name: customName, claudeSID: sid, title: title),
                                   for: projectID)
             pm.closeTab(tabID: tab.id, killTmux: true)
-            workspace.closeTab(tab.id, in: projectID)
         }
     }
 }
@@ -69,6 +80,8 @@ struct ProjectView: View {
     @ObservedObject var router: AppRouter
 
     @State private var didAppear = false
+    @State private var deckJSONMtime: Date?
+    private let deckJSONTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     private var isWorkspaceOpen: Bool {
         workspace.workspaceOpen[project.id] ?? false
@@ -90,6 +103,7 @@ struct ProjectView: View {
             Divider().overlay(Color.white.opacity(0.06))
             ZStack {
                 CanvasView(project: project,
+                           keyboardEnabled: isActive && !isWorkspaceOpen,
                            store: store,
                            pm: pm,
                            workspace: workspace,
@@ -110,6 +124,13 @@ struct ProjectView: View {
             didAppear = true
             workspace.adoptTmuxSessions(for: project, tabStore: tabStore)
             pm.scanExternalServices(projects: [project])
+            syncDeckJSON(force: true)
+        }
+        // deck.json köprüsü: Claude (veya kullanıcı) dosyayı değiştirince
+        // öğeler canvas'a otomatik akar.
+        .onReceive(deckJSONTimer) { _ in
+            guard isActive else { return }
+            syncDeckJSON(force: false)
         }
         .onReceive(NotificationCenter.default.publisher(for: .deckToggleWorkspace)) { _ in
             guard isActive else { return }
@@ -133,6 +154,14 @@ struct ProjectView: View {
             guard n >= 1, n <= tabs.count else { return }
             workspace.select(tabs[n - 1].id, in: project.id)
         }
+    }
+
+    private func syncDeckJSON(force: Bool) {
+        let mtime = DeckFileService.modificationDate(for: project)
+        guard let mtime else { return }
+        if !force, mtime == deckJSONMtime { return }
+        deckJSONMtime = mtime
+        DeckFileService.sync(project: project, store: store)
     }
 
     // MARK: - Üst bar

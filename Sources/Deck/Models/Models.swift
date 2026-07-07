@@ -12,12 +12,13 @@ struct IconSpec: Codable, Equatable, Hashable {
     static let claude = IconSpec(symbol: "✳️", isEmoji: true, colorHex: "#D97757")
     static let defaultTerminal = IconSpec(symbol: "terminal.fill", isEmoji: false, colorHex: "#3DDC84")
     static let defaultWeb = IconSpec(symbol: "globe", isEmoji: false, colorHex: "#38BDF8")
+    static let defaultFolder = IconSpec(symbol: "folder.fill", isEmoji: false, colorHex: "#E8B84B")
 }
 
 // MARK: - Canvas Item
 
 enum ItemKind: String, Codable {
-    case claude, terminal, web
+    case claude, terminal, web, folder
 }
 
 enum TerminalMode: String, Codable {
@@ -31,6 +32,8 @@ struct CanvasItem: Codable, Equatable, Identifiable, Hashable {
     var icon: IconSpec
     var x: Double = 40
     var y: Double = 40
+    /// İçinde bulunduğu klasör (yalnız servisler klasöre girebilir; klasörler hep kökte).
+    var parentID: UUID?
 
     // terminal
     var command: String?
@@ -43,7 +46,7 @@ struct CanvasItem: Codable, Equatable, Identifiable, Hashable {
     var url: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, name, icon, x, y, command, mode, port, autoStart, cwd, url
+        case id, kind, name, icon, x, y, parentID, command, mode, port, autoStart, cwd, url
     }
 
     init(kind: ItemKind, name: String, icon: IconSpec) {
@@ -60,6 +63,7 @@ struct CanvasItem: Codable, Equatable, Identifiable, Hashable {
         icon = try c.decodeIfPresent(IconSpec.self, forKey: .icon) ?? .defaultTerminal
         x = try c.decodeIfPresent(Double.self, forKey: .x) ?? 40
         y = try c.decodeIfPresent(Double.self, forKey: .y) ?? 40
+        parentID = try c.decodeIfPresent(UUID.self, forKey: .parentID)
         command = try c.decodeIfPresent(String.self, forKey: .command)
         mode = try c.decodeIfPresent(TerminalMode.self, forKey: .mode)
         port = try c.decodeIfPresent(Int.self, forKey: .port)

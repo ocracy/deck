@@ -30,6 +30,47 @@ struct IconView: View {
     }
 }
 
+// MARK: - Claude ikonu (orijinal marka görünümü: krem zemin + mercan sunburst)
+
+struct ClaudeIconView: View {
+    var size: CGFloat = 72
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                .fill(Color(hex: "#EEECE2"))
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                        .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
+                )
+            ClaudeStarburst()
+                .stroke(Color(hex: "#D97757"),
+                        style: StrokeStyle(lineWidth: size * 0.085, lineCap: .round))
+                .frame(width: size * 0.58, height: size * 0.58)
+        }
+        .frame(width: size, height: size)
+        .shadow(color: .black.opacity(0.35), radius: size * 0.08, y: size * 0.04)
+    }
+}
+
+/// Claude logosundaki sunburst: merkezden dışa 12 ışın, hafif organik uzunluklar.
+struct ClaudeStarburst: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        let rOut = min(rect.width, rect.height) / 2
+        let rIn = rOut * 0.30
+        let rays = 12
+        for i in 0..<rays {
+            let a = (CGFloat(i) / CGFloat(rays)) * 2 * .pi - .pi / 2 + .pi / CGFloat(rays)
+            let len = rOut * (i % 3 == 0 ? 1.0 : (i % 3 == 1 ? 0.86 : 0.94))
+            p.move(to: CGPoint(x: c.x + cos(a) * rIn, y: c.y + sin(a) * rIn))
+            p.addLine(to: CGPoint(x: c.x + cos(a) * len, y: c.y + sin(a) * len))
+        }
+        return p
+    }
+}
+
 // MARK: - IconPicker — sembol/emoji + renk seçimi
 
 struct IconPicker: View {

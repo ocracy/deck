@@ -45,6 +45,20 @@ final class WorkspaceStore: ObservableObject {
         activeTab[projectID] = tabID
     }
 
+    /// Sürükle-bırak sıralama: `tabID`'yi `targetID`'nin önüne taşır;
+    /// `targetID` nil ise sona atar.
+    func moveTab(_ tabID: UUID, before targetID: UUID?, in projectID: UUID) {
+        var list = tabs[projectID] ?? []
+        guard let from = list.firstIndex(where: { $0.id == tabID }) else { return }
+        let moved = list.remove(at: from)
+        if let targetID, let to = list.firstIndex(where: { $0.id == targetID }) {
+            list.insert(moved, at: to)
+        } else {
+            list.append(moved)
+        }
+        tabs[projectID] = list
+    }
+
     func renameTab(_ tabID: UUID, in projectID: UUID, to name: String?) {
         guard var list = tabs[projectID],
               let idx = list.firstIndex(where: { $0.id == tabID }) else { return }

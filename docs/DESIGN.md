@@ -19,7 +19,20 @@
 | `terminal` (mode: `shell`) | Belirli dizinde boş interaktif terminal açar. |
 | `web` | Kayıtlı URL'yi workspace'te gömülü WKWebView sekmesinde açar (isInspectable → Web Inspector). |
 
-Her ikonun adı ve görseli (SF Symbol veya emoji + renk) özelleştirilebilir.
+| `folder` | Yalnız servisleri gruplar (tek seviye). Çift tık → içine gir; sağ tık → Tümünü Başlat/Durdur/Yeniden Başlat. Servisler sürüklenerek içine atılır. |
+
+Her ikonun adı ve görseli (SF Symbol veya emoji + renk) özelleştirilebilir. Claude ikonu marka görünümünü (krem zemin + mercan sunburst) kullanır.
+
+## Canvas Etkileşimi
+
+- Tek tık seç, ⌘+tık çoklu seç, boş alanda sürükle = kutu seçim, ⌘A tümü.
+- Seçili grup birlikte sürüklenir; grup sağ tık → Seçilenleri Başlat/Durdur/Yeniden Başlat, Arka Planda Çalıştır, Klasöre Taşı, Kopyala, Sil.
+- ⌘C/⌘V kopyala-yapıştır (projeler arası da), Enter yeniden adlandır, ⌘⌫ sil, Esc seçim/klasör/aramadan çık, ⌘P arama paleti.
+- Komutlarda sağ tık → "Arka Planda Çalıştır": sekme açılmaz, bitince ses + bildirim.
+
+## AI Kanalı (deck.json)
+
+Proje kökündeki `deck.json` Deck'in içe aktarma kanalıdır: `{"items":[{kind,name,command,port,cwd,url,folder,icon,autoStart}]}` — konum bilgisi YOK, Deck boş yuva atar. Boş alan sağ tık → "AI ile Oluştur": spec'i gömülü prompt ile yeni Claude sekmesi açılır; Claude repo'yu inceleyip dosyayı yazar/günceller, Deck 2sn'lik mtime izleyicisiyle isme-göre-upsert eder (silme yapmaz). Kullanıcı Claude'a "şunu ekle" diyerek arayüzü genişletebilir.
 
 ## Veri Modeli (Codable, `~/Library/Application Support/Deck/projects.json`)
 

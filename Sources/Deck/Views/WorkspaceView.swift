@@ -54,11 +54,28 @@ struct WorkspaceView: View {
                 HStack(spacing: 6) {
                     ForEach(tabs) { tab in
                         tabPill(tab)
+                            .draggable(tab.id.uuidString)
+                            .dropDestination(for: String.self) { dropped, _ in
+                                guard let s = dropped.first, let dragged = UUID(uuidString: s),
+                                      dragged != tab.id else { return false }
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    workspace.moveTab(dragged, before: tab.id, in: project.id)
+                                }
+                                return true
+                            }
                     }
                 }
                 .padding(.vertical, 3)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // Boş alana bırakma = sona taşı.
+            .dropDestination(for: String.self) { dropped, _ in
+                guard let s = dropped.first, let dragged = UUID(uuidString: s) else { return false }
+                withAnimation(.easeOut(duration: 0.15)) {
+                    workspace.moveTab(dragged, before: nil, in: project.id)
+                }
+                return true
+            }
 
             newClaudeButton
             newTerminalMenu
@@ -385,29 +402,10 @@ struct WorkspaceView: View {
         }
     }
 
-    /// Kapatmadan önce tmux'tan @claude_sid okunur ki oturum sonradan
-    /// `claude --resume` ile geri getirilebilsin.
+    /// Sekme UI'dan ANINDA düşer; sid okuma + tmux kill + kayıt arka planda.
     private func closeClaudeTab(_ tab: WorkspaceTab) {
-        let sessionName = tab.tmuxSession
-        let number = tab.number ?? 0
-        let name = tab.customName
-        let title = sessionName.flatMap { pm.paneTitles[$0] }
-        let projectID = project.id
-        workspace.closeTab(tab.id, in: projectID)
-        Task {
-            let tmuxSid: String? = await Task.detached(priority: .userInitiated) {
-                guard let sessionName else { return nil }
-                return TmuxService.listSessions().first(where: { $0.name == sessionName })?.claudeSID
-            }.value
-            // Oturum tmux'ta yoksa (ör. /exit ile bitti) hook'un yakaladığı sid'e düş.
-            let sid = tmuxSid ?? pm.claudeSID(for: tab.id)
-            tabStore.recordClosed(ClaudeTabStore.ClosedTab(number: number,
-                                                           name: name,
-                                                           claudeSID: sid,
-                                                           title: title),
-                                  for: projectID)
-            pm.closeTab(tabID: tab.id, killTmux: true)
-        }
+        workspace.closeTab(tab.id, in: project.id)
+        ClaudeTabLauncher.finishClose(tab, projectID: project.id, tabStore: tabStore, pm: pm)
     }
 
     /// tmux'tan adopt edilen sekmelerin PTY'si yoktur — new-session -A ile reattach.
