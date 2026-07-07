@@ -12,9 +12,11 @@ echo "→ App icon üretiliyor…"
 swift scripts/make-icon.swift
 iconutil -c icns AppIcon.iconset -o AppIcon.icns
 
-echo "→ Universal binary derleniyor (arm64 + x86_64)…"
-swift build -c release --arch arm64 --arch x86_64
-BIN_PATH=".build/apple/Products/Release/${APP_NAME}"
+# Not: --arch arm64 --arch x86_64 universal build'i Metal Toolchain ister
+# (xcodebuild -downloadComponent MetalToolchain); şimdilik native arch.
+echo "→ Release derleniyor (native arch)…"
+swift build -c release
+BIN_PATH=".build/release/${APP_NAME}"
 
 if [ ! -f "${BIN_PATH}" ]; then
   echo "✗ Build başarısız: ${BIN_PATH} yok"
@@ -71,4 +73,4 @@ zip -qry Deck.zip "${APP}" INSTALL.txt
 rm -f INSTALL.txt
 
 SIZE=$(du -h Deck.zip | cut -f1)
-echo "✓ Deck.zip hazır (${SIZE}) — mimariler: arm64 + x86_64"
+echo "✓ Deck.zip hazır (${SIZE}) — mimari: 20 20 12 61 79 80 81 701 702 33 98 100 204 250 395 398 399 400uname -m)"
