@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+*.xcodeproj
+DerivedData/
+Deck.app/
+Deck.zip
+AppIcon.iconset/
+*.icns
+.DS_Store
