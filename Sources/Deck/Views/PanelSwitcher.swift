@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Workspace ↔ Servis paneli arasında hızlı geçiş segmenti.
-/// Her iki panelin üst barında aynı görünür; aktif olan vurgulanır,
-/// masaüstü ise her ikisini kapatır.
+/// Aktif olan vurgulanır; aktif segmente tekrar basmak paneli kapatıp
+/// masaüstüne döndürür (⌘B/⌘J ile aynı toggle mantığı).
 struct PanelSwitcher: View {
     let projectID: UUID
     @ObservedObject var workspace: WorkspaceStore
@@ -12,15 +12,13 @@ struct PanelSwitcher: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            segment("Masaüstü", "square.grid.2x2", active: !isWorkspace && !isService) {
-                workspace.openWorkspace(projectID, false)
-                workspace.openServicePanel(projectID, false)
+            segment("Workspace", "rectangle.on.rectangle", active: isWorkspace,
+                    tip: "Workspace (⌘B) — açıkken tekrar bas: masaüstü") {
+                workspace.openWorkspace(projectID, !isWorkspace)
             }
-            segment("Workspace", "rectangle.on.rectangle", active: isWorkspace) {
-                workspace.openWorkspace(projectID, true)
-            }
-            segment("Servisler", "bolt.horizontal.fill", active: isService) {
-                workspace.openServicePanel(projectID, true)
+            segment("Servisler", "bolt.horizontal.fill", active: isService,
+                    tip: "Servisler (⌘J) — açıkken tekrar bas: masaüstü") {
+                workspace.openServicePanel(projectID, !isService)
             }
         }
         .padding(2)
@@ -28,7 +26,7 @@ struct PanelSwitcher: View {
     }
 
     private func segment(_ title: String, _ icon: String, active: Bool,
-                         _ action: @escaping () -> Void) -> some View {
+                         tip: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
@@ -45,5 +43,6 @@ struct PanelSwitcher: View {
             )
         }
         .buttonStyle(.plain)
+        .help(tip)
     }
 }
