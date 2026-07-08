@@ -75,9 +75,34 @@ struct WorkspaceView: View {
         .background(.ultraThinMaterial)
     }
 
+    private var closedTabs: [ClaudeTabStore.ClosedTab] {
+        tabStore.closed[project.id] ?? []
+    }
+
+    /// "+" menüsü: yeni Claude sekmesi VEYA kapatılmış bir oturumu adıyla sürdür.
     private var newClaudeButton: some View {
-        Button {
-            addClaudeTab()
+        Menu {
+            Button {
+                addClaudeTab()
+            } label: {
+                Label("Yeni Claude Sekmesi", systemImage: "plus")
+            }
+            if !closedTabs.isEmpty {
+                Divider()
+                Section("Kapatılmış oturumu sürdür") {
+                    ForEach(closedTabs) { ct in
+                        Button {
+                            reopenClosed(ct)
+                        } label: {
+                            Label(closedLabel(ct), systemImage: "clock.arrow.circlepath")
+                        }
+                    }
+                }
+                Divider()
+                Button("Geçmiş Listesini Temizle", role: .destructive) {
+                    tabStore.clearClosed(for: project.id)
+                }
+            }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "plus")
@@ -97,10 +122,27 @@ struct WorkspaceView: View {
             )
             .foregroundStyle(Color.accentColor)
         }
-        .buttonStyle(.plain)
-        // ⌘T yalnız CommandMenu'den gelir; gizli (opacity 0) kopyaların
-        // kısayolu gölgelemesi yanlış projede sekme açıyordu.
-        .help("Yeni Claude sekmesi (⌘T)")
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Yeni Claude sekmesi (⌘T) veya kapatılmış oturumu sürdür")
+    }
+
+    private func closedLabel(_ ct: ClaudeTabStore.ClosedTab) -> String {
+        if let name = ct.name, !name.isEmpty {
+            return name
+        }
+        if let title = ct.title, !title.isEmpty {
+            return title
+        }
+        return "Claude \(ct.number)"
+    }
+
+    private func reopenClosed(_ ct: ClaudeTabStore.ClosedTab) {
+        tabStore.removeClosed(number: ct.number, for: project.id)
+        let resume = ct.claudeSID.map { ClaudeResumeOptions(sessionID: $0) }
+        ClaudeTabLauncher.open(project: project, workspace: workspace, tabStore: tabStore,
+                               pm: pm, resume: resume, customName: ct.name)
     }
 
     private var newTerminalMenu: some View {

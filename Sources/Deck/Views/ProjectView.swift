@@ -132,7 +132,7 @@ struct ProjectView: View {
         .onAppear {
             guard !didAppear else { return }
             didAppear = true
-            workspace.adoptTmuxSessions(for: project, tabStore: tabStore)
+            pm.adoptClaudeTabs(for: project, workspace: workspace, tabStore: tabStore)
             pm.scanExternalServices(projects: [project])
             syncDeckJSON(force: true)
         }

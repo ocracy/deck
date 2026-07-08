@@ -321,6 +321,17 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
         tabSIDs[tabID]
     }
 
+    /// tmux'ta yaşayan Claude oturumlarını sekme olarak geri getirir ve
+    /// hemen reattach eder — tek giriş noktası (bootstrap + ProjectView).
+    func adoptClaudeTabs(for project: Project, workspace: WorkspaceStore, tabStore: ClaudeTabStore) {
+        workspace.adoptTmuxSessions(for: project, tabStore: tabStore) { [weak self] tab in
+            guard let self, !self.hasTerminalView(forKey: tab.id.uuidString) else { return }
+            self.startClaude(tabID: tab.id, project: project, number: tab.number ?? 0,
+                             customName: tab.customName, resume: nil,
+                             existingSession: tab.tmuxSession)
+        }
+    }
+
     func closeTab(tabID: UUID, killTmux: Bool) {
         let key = tabID.uuidString
         var session: String? = nil

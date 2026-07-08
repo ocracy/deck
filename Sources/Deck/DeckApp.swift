@@ -132,6 +132,9 @@ struct DeckApp: App {
             where item.kind == .terminal && item.mode == .service && item.autoStart {
                 processManager.startService(item, project: project)
             }
+            // Açılışta tmux'ta yaşayan Claude oturumlarını hemen reattach et —
+            // projeye girmeyi beklemeden kaldığı yerden bağlanır.
+            processManager.adoptClaudeTabs(for: project, workspace: workspaceStore, tabStore: tabStore)
         }
         processManager.scanExternalServices(projects: projectStore.projects)
     }

@@ -72,33 +72,40 @@ final class WorkspaceStore: ObservableObject {
 
     /// Açılışta tmux'tan `@deck_project == project.shortID` olan oturumları sekme olarak
     /// geri getirir. İdempotent: zaten açık olan oturum için sekme eklemez.
-    /// Reattach (pm.startClaude) WorkspaceView tarafında yapılır.
-    func adoptTmuxSessions(for project: Project, tabStore: ClaudeTabStore) {
+    /// `reattach`: her adopt edilen (ya da zaten listede olan) Claude sekmesi için
+    /// çağrılır — workspace görünür olsun olmasın hemen tmux'a bağlanması sağlanır
+    /// (WorkspaceView'ın gizliyken çalışmayan onChange'ine güvenmek yerine).
+    func adoptTmuxSessions(for project: Project, tabStore: ClaudeTabStore,
+                           reattach: @escaping (WorkspaceTab) -> Void) {
         let shortID = project.shortID
         let projectID = project.id
         Task.detached(priority: .userInitiated) { [weak self, weak tabStore] in
             let sessions = TmuxService.listSessions().filter { $0.projectID == shortID }
-            guard !sessions.isEmpty else { return }
             await MainActor.run {
                 guard let self else { return }
                 var list = self.tabs[projectID] ?? []
                 var maxNumber = 0
                 for session in sessions.sorted(by: { $0.number < $1.number }) {
                     maxNumber = max(maxNumber, session.number)
-                    guard !list.contains(where: { $0.tmuxSession == session.name }) else { continue }
-                    let tab = WorkspaceTab(id: UUID(uuidString: session.name) ?? UUID(),
-                                           kind: .claude,
-                                           title: session.customName ?? "Claude \(session.number)",
-                                           tmuxSession: session.name,
-                                           number: session.number,
-                                           customName: session.customName)
-                    list.append(tab)
+                    if !list.contains(where: { $0.tmuxSession == session.name }) {
+                        let tab = WorkspaceTab(id: UUID(uuidString: session.name) ?? UUID(),
+                                               kind: .claude,
+                                               title: session.customName ?? "Claude \(session.number)",
+                                               tmuxSession: session.name,
+                                               number: session.number,
+                                               customName: session.customName)
+                        list.append(tab)
+                    }
                 }
                 self.tabs[projectID] = list
                 if self.activeTab[projectID] == nil {
                     self.activeTab[projectID] = list.first?.id
                 }
                 tabStore?.bumpCounter(for: projectID, atLeast: maxNumber)
+                // Her Claude sekmesini hemen reattach et (idempotent).
+                for tab in list where tab.kind == .claude {
+                    reattach(tab)
+                }
             }
         }
     }
