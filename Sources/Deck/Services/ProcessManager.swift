@@ -81,8 +81,7 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
         statuses[item.id] = .starting
         removeStateFile(key)
 
-        let rawCwd = (item.cwd?.isEmpty == false) ? item.cwd! : project.path
-        let cwd = (rawCwd as NSString).expandingTildeInPath
+        let cwd = item.resolvedCwd(projectPath: project.path)
         feed(key: key, ansi: "\r\n\u{1B}[2m— başlatılıyor: \(command) (dizin: \(cwd)) —\u{1B}[0m\r\n")
 
         let cols = max(80, view.getTerminal().cols)
@@ -221,8 +220,7 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
         backgroundKeys.insert(key)
         backgroundNames[key] = item.name
         statuses[item.id] = .running
-        let rawCwd = (item.cwd?.isEmpty == false) ? item.cwd! : project.path
-        spawnPlain(key: key, command: command, cwd: rawCwd)
+        spawnPlain(key: key, command: command, cwd: item.resolvedCwd(projectPath: project.path))
     }
 
     func runOneshot(tabID: UUID, command: String, cwd: String) {

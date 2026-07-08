@@ -199,7 +199,7 @@ struct ItemEditorSheet: View {
 
     private var cwdRow: some View {
         row("Çalışma dizini") {
-            TextField(project.path, text: $cwd)
+            TextField("proje kökü (boş) veya köke göreli: backend", text: $cwd)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 11, design: .monospaced))
             Button {
@@ -224,14 +224,25 @@ struct ItemEditorSheet: View {
     // MARK: - Aksiyonlar
 
     private func pickDirectory() {
+        let root = (project.path as NSString).expandingTildeInPath
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Seç"
-        panel.directoryURL = URL(fileURLWithPath: cwd.isEmpty ? project.path : cwd)
+        let start = cwd.isEmpty ? root : (cwd.hasPrefix("/") ? cwd : root + "/" + cwd)
+        panel.directoryURL = URL(fileURLWithPath: start)
         if panel.runModal() == .OK, let url = panel.url {
-            cwd = url.path
+            let picked = url.path
+            // Proje kökünün içindeyse köke göre göreli sakla (taşınabilirlik +
+            // spawn shell'inin doğru çözmesi için); dışındaysa mutlak bırak.
+            if picked == root {
+                cwd = ""
+            } else if picked.hasPrefix(root + "/") {
+                cwd = String(picked.dropFirst(root.count + 1))
+            } else {
+                cwd = picked
+            }
         }
     }
 

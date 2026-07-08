@@ -246,7 +246,12 @@ enum DeckFileService {
         composer install, test komutu.
         - "web" → gerçekten var olan lokal URL'ler: uygulama, /horizon paneli, /telescope, Mailpit.
         - "shell" → yalnız kökten farklı, sık girilen bir dizin varsa (ör. backend/).
-        - "cwd" → komut kökten çalışmıyorsa göreli dizin; kökse hiç yazma.
+
+        cwd KURALI (kritik — yanlış yazarsan komut çalışmaz):
+        - Komut proje KÖKÜNDE çalışıyorsa cwd alanını HİÇ YAZMA (Deck kökü kendisi kullanır).
+        - Alt dizinde çalışıyorsa YALNIZ köke göre göreli yol yaz: "backend", "apps/web" gibi.
+        - ASLA mutlak yol (/Users/...), "~", "./" öneki veya proje kökünün kendisini yazma.
+        - Yazdığın her cwd'nin gerçekten var olduğunu kontrol et (ls ile).
 
         İKON SEÇİMİ — her öğeye şu setten uygun ikonu ver \
         (format: "icon": {"symbol": "...", "isEmoji": false, "colorHex": "#..."}):

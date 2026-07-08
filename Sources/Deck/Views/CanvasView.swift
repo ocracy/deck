@@ -648,7 +648,7 @@ struct CanvasView: View {
         guard let command = item.command, !command.isEmpty else { return }
         let tab = WorkspaceTab(kind: .oneshot, title: item.name, itemID: item.id)
         workspace.addTab(tab, to: project.id, activate: true)
-        pm.runOneshot(tabID: tab.id, command: command, cwd: item.cwd ?? liveProject.path)
+        pm.runOneshot(tabID: tab.id, command: command, cwd: item.resolvedCwd(projectPath: liveProject.path))
         workspace.openWorkspace(project.id, true)
     }
 
@@ -658,7 +658,7 @@ struct CanvasView: View {
         } else {
             let tab = WorkspaceTab(kind: .shell, title: item.name, itemID: item.id)
             workspace.addTab(tab, to: project.id, activate: true)
-            pm.startShell(tabID: tab.id, cwd: item.cwd ?? liveProject.path)
+            pm.startShell(tabID: tab.id, cwd: item.resolvedCwd(projectPath: liveProject.path))
         }
         workspace.openWorkspace(project.id, true)
     }

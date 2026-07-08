@@ -73,6 +73,21 @@ struct CanvasItem: Codable, Equatable, Identifiable, Hashable {
     }
 }
 
+extension CanvasItem {
+    /// Çalışma dizinini proje köküne göre çözer: boş/"." → kök, "~" ve "/"
+    /// mutlak, diğer her şey köke GÖRELİ ("backend", "./apps/web" ...).
+    /// AI'nın deck.json'a yazdığı göreli yollar da böylece her zaman çalışır.
+    func resolvedCwd(projectPath: String) -> String {
+        let root = (projectPath as NSString).expandingTildeInPath
+        guard var raw = cwd?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return root }
+        if raw.hasPrefix("./") { raw.removeFirst(2) }
+        if raw.isEmpty || raw == "." { return root }
+        let expanded = (raw as NSString).expandingTildeInPath
+        if expanded.hasPrefix("/") { return expanded }
+        return root + "/" + expanded
+    }
+}
+
 // MARK: - Project
 
 struct Project: Codable, Equatable, Identifiable, Hashable {
