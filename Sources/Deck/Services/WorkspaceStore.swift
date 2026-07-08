@@ -80,7 +80,16 @@ final class WorkspaceStore: ObservableObject {
         let shortID = project.shortID
         let projectID = project.id
         Task.detached(priority: .userInitiated) { [weak self, weak tabStore] in
-            let sessions = TmuxService.listSessions().filter { $0.projectID == shortID }
+            // tmux server açılışta soğuksa ilk list-sessions eksik/boş dönebilir;
+            // dolu bir yanıt gelene kadar kısa aralıklarla birkaç kez dene.
+            var all = TmuxService.listSessions()
+            var tries = 0
+            while all.isEmpty, tries < 5, FileManager.default.fileExists(atPath: TmuxService.socketPath) {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                all = TmuxService.listSessions()
+                tries += 1
+            }
+            let sessions = all.filter { $0.projectID == shortID }
             await MainActor.run {
                 guard let self else { return }
                 var list = self.tabs[projectID] ?? []

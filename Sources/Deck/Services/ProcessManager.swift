@@ -26,6 +26,8 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
     private var tabSIDs: [UUID: String] = [:]
     private var backgroundKeys: Set<String> = []
     private var backgroundNames: [String: String] = [:]
+    /// startClaude çağrıldı ama process henüz running değil — çift spawn'ı önler.
+    private var startingClaudeKeys: Set<String> = []
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
     private var lastScrollSend = Date.distantPast
@@ -255,8 +257,13 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
                      resume: ClaudeResumeOptions?, existingSession: String?,
                      initialPrompt: String? = nil) {
         let key = tabID.uuidString
+        // Çift reattach koruması: bootstrap + ProjectView.onAppear ikisi de
+        // reattach edebilir; process.running henüz true olmadan ikinci çağrı
+        // aynı view'da ikinci PTY spawn edip tmux client'ını orphan bırakırdı.
+        if startingClaudeKeys.contains(key) { return }
         let view = terminalView(forKey: key)
         if view.process.running { return }
+        startingClaudeKeys.insert(key)
         // Reattach'te state dosyasını KORU: canlı oturumun "waiting" rozeti
         // açılışta hemen görünmeli (startStateWatching bilerek saklıyor).
         if existingSession == nil { removeStateFile(key) }
@@ -299,14 +306,20 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
                           args: ["-l", "-i", "-c", wrapped],
                           environment: env,
                           execName: nil)
+        // Spawn tamamlandı; kısa süre sonra guard'ı kaldır (process.running
+        // artık true; sonraki reattach oradan return eder).
+        afterMain(1.0) { [weak self] in self?.startingClaudeKeys.remove(key) }
 
         if TmuxService.isAvailable {
-            stampTmuxOptions(session: session,
-                             projectShortID: project.shortID,
-                             number: number,
-                             customName: customName,
-                             claudeSID: resume?.sessionID ?? tabSIDs[tabID])
-            if existingSession != nil {
+            // Metadata'yı yalnız YENİ oturumda damgala; reattach'te zaten yazılı
+            // (gereksiz senkron yük + @claude_sid'i ezme riski olmasın).
+            if existingSession == nil {
+                stampTmuxOptions(session: session,
+                                 projectShortID: project.shortID,
+                                 number: number,
+                                 customName: customName,
+                                 claudeSID: resume?.sessionID ?? tabSIDs[tabID])
+            } else {
                 // Attach sonrası boş ekran: winsize değişimi tmux istemcisine
                 // SIGWINCH gönderir → tam yeniden çizim (softReset alt-screen'i bozar).
                 for delay in [0.7, 1.6, 2.8] {
@@ -736,6 +749,7 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
     }
 
     private func handleExit(key: String, code: Int32) {
+        startingClaudeKeys.remove(key)
         feed(key: key, ansi: "\r\n\u{1B}[2m— bitti (kod \(code)) —\u{1B}[0m\r\n")
         removeStateFile(key)
         guard let uuid = UUID(uuidString: key) else { return }
