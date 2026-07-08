@@ -6,6 +6,8 @@ import AppKit
 extension Notification.Name {
     /// ⌘B — workspace'i aç/kapat.
     static let deckToggleWorkspace = Notification.Name("Deck.ToggleWorkspace")
+    /// ⌘J — servis panelini aç/kapat.
+    static let deckToggleServicePanel = Notification.Name("Deck.ToggleServicePanel")
     /// ⌘T — yeni Claude sekmesi.
     static let deckNewClaudeTab = Notification.Name("Deck.NewClaudeTab")
     /// ⌘W — aktif sekmeyi kapat.
@@ -71,6 +73,11 @@ struct DeckApp: App {
                     NotificationCenter.default.post(name: .deckToggleWorkspace, object: nil)
                 }
                 .keyboardShortcut("b", modifiers: .command)
+
+                Button("Servis Panelini Aç/Kapat") {
+                    NotificationCenter.default.post(name: .deckToggleServicePanel, object: nil)
+                }
+                .keyboardShortcut("j", modifiers: .command)
 
                 Button("Yeni Claude Sekmesi") {
                     NotificationCenter.default.post(name: .deckNewClaudeTab, object: nil)

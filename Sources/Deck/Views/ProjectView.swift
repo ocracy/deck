@@ -154,6 +154,10 @@ struct ProjectView: View {
             guard isActive else { return }
             workspace.openWorkspace(project.id, !isWorkspaceOpen)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .deckToggleServicePanel)) { _ in
+            guard isActive else { return }
+            workspace.openServicePanel(project.id, !isServicePanelOpen)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .deckNewClaudeTab)) { _ in
             guard isActive else { return }
             ClaudeTabLauncher.open(project: project, workspace: workspace, tabStore: tabStore, pm: pm)
@@ -231,7 +235,7 @@ struct ProjectView: View {
                     .background(Capsule().fill(Color.green.opacity(isServicePanelOpen ? 0.18 : 0.10)))
                 }
                 .buttonStyle(.plain)
-                .help("Servis panelini aç/kapat")
+                .help("Servis panelini aç/kapat (⌘J)")
                 .padding(.trailing, 6)
             }
 

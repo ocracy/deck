@@ -35,20 +35,7 @@ struct WorkspaceView: View {
 
     private var tabBar: some View {
         HStack(spacing: 8) {
-            Button {
-                workspace.openWorkspace(project.id, false)
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
-                    .frame(width: 26, height: 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.secondary.opacity(0.10))
-                    )
-            }
-            .buttonStyle(.plain)
-            // Esc kısayolu BAĞLANMAZ: terminal odaktayken Esc Claude'a gitmeli.
-            .help("Masaüstüne dön (⌘B)")
+            PanelSwitcher(projectID: project.id, workspace: workspace)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {

@@ -9,6 +9,9 @@ struct ServicePanelView: View {
     @ObservedObject var workspace: WorkspaceStore
     @ObservedObject var pm: ProcessManager
 
+    /// "Servisler" başlığına basınca açılan genel bakış (tüm servisler grid).
+    @State private var overview = false
+
     private var services: [CanvasItem] {
         project.items.filter { $0.kind == .terminal && $0.mode == .service }
     }
@@ -20,6 +23,7 @@ struct ServicePanelView: View {
     }
 
     private var activeID: UUID? {
+        if overview { return nil }
         if let id = workspace.activeService[project.id],
            activeServices.contains(where: { $0.id == id }) {
             return id
@@ -40,29 +44,29 @@ struct ServicePanelView: View {
 
     private var bar: some View {
         HStack(spacing: 8) {
+            PanelSwitcher(projectID: project.id, workspace: workspace)
+
+            // "Servisler" başlığı: tıklanınca tüm servislere genel bakış.
             Button {
-                workspace.openServicePanel(project.id, false)
+                overview = true
             } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
-                    .frame(width: 26, height: 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.secondary.opacity(0.10))
-                    )
+                HStack(spacing: 5) {
+                    Image(systemName: "square.grid.2x2.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(overview ? Color.accentColor : Color.green)
+                    Text("Tüm Servisler")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(overview ? Color.accentColor : .secondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(overview ? Color.accentColor.opacity(0.15) : Color.clear)
+                )
             }
             .buttonStyle(.plain)
-            .help("Masaüstüne dön")
-
-            HStack(spacing: 5) {
-                Image(systemName: "bolt.horizontal.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.green)
-                Text("Servisler")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.trailing, 4)
+            .help("Tüm servislere genel bakış")
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -165,6 +169,7 @@ struct ServicePanelView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
+            overview = false
             workspace.selectService(item.id, in: project.id)
         }
         .help("\(item.name) — \(status.label)")
@@ -172,63 +177,133 @@ struct ServicePanelView: View {
 
     // MARK: - İçerik
 
+    /// Genel bakış: overview seçili, hiç aktif servis yok, ya da hiç
+    /// servis çalışmıyorken açılışta doğrudan tüm servisler görünür.
+    private var showsOverview: Bool {
+        overview || activeServices.isEmpty
+    }
+
     @ViewBuilder
     private var content: some View {
-        if activeServices.isEmpty {
-            emptyState
-        } else {
-            ZStack {
-                ForEach(activeServices) { item in
-                    TerminalHostView(key: item.id.uuidString, manager: pm)
-                        .opacity(item.id == activeID ? 1 : 0)
-                        .allowsHitTesting(item.id == activeID)
-                }
+        ZStack {
+            // Terminaller her zaman mount kalır (scrollback yaşasın); overview
+            // üstlerine bindirilir.
+            ForEach(activeServices) { item in
+                TerminalHostView(key: item.id.uuidString, manager: pm)
+                    .opacity(!showsOverview && item.id == activeID ? 1 : 0)
+                    .allowsHitTesting(!showsOverview && item.id == activeID)
+            }
+            if showsOverview {
+                overviewGrid
             }
         }
     }
 
-    /// Hiç servis çalışmıyorsa: tanımlı servisleri hızlı-başlat listesi olarak sun.
-    private var emptyState: some View {
-        VStack(spacing: 18) {
-            Image(systemName: "bolt.horizontal")
-                .font(.system(size: 36, weight: .light))
-                .foregroundStyle(.secondary)
-            Text("Çalışan servis yok")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-
-            if !services.isEmpty {
-                VStack(spacing: 6) {
-                    ForEach(services) { item in
+    /// Tüm servisleri durumlarıyla gösteren grid — hem "genel bakış" hem
+    /// boş durum. Çalışana tıkla → terminaline git; durmuşa tıkla → başlat.
+    private var overviewGrid: some View {
+        let columns = [GridItem(.adaptive(minimum: 240, maximum: 320), spacing: 14)]
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text(services.isEmpty ? "Tanımlı servis yok" : "Servisler")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if services.contains(where: { pm.status(of: $0.id) == .stopped }) {
                         Button {
-                            pm.startService(item, project: project)
-                            workspace.selectService(item.id, in: project.id)
-                        } label: {
-                            HStack(spacing: 10) {
-                                IconView(spec: item.icon, size: 26)
-                                Text(item.name)
-                                    .font(.system(size: 13, weight: .medium))
-                                if let port = item.port {
-                                    Text(verbatim: ":\(port)")
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.green)
+                            for s in services where pm.status(of: s.id) == .stopped {
+                                pm.startService(s, project: project)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .frame(width: 320)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
-                            .contentShape(Rectangle())
+                        } label: {
+                            Label("Tümünü Başlat", systemImage: "play.fill")
+                                .font(.system(size: 11, weight: .medium))
                         }
                         .buttonStyle(.plain)
+                        .foregroundStyle(.green)
+                    }
+                }
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                    ForEach(services) { item in
+                        overviewCard(item)
+                    }
+                }
+                if services.isEmpty {
+                    Text("Masaüstünde sağ tık → “Yeni Servis” ile ekleyebilir\nveya “AI ile Oluştur” diyebilirsin.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 8)
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    private func overviewCard(_ item: CanvasItem) -> some View {
+        let status = pm.status(of: item.id)
+        return HStack(spacing: 11) {
+            IconView(spec: item.icon, size: 34)
+                .overlay(alignment: .bottomTrailing) {
+                    Circle().fill(status.color)
+                        .frame(width: 9, height: 9)
+                        .overlay(Circle().stroke(Color(NSColor.windowBackgroundColor), lineWidth: 1.5))
+                        .offset(x: 2, y: 2)
+                }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(status.label)
+                        .font(.system(size: 10))
+                        .foregroundStyle(status.color)
+                    if let port = item.port {
+                        Text(verbatim: ":\(port)")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
+            Spacer(minLength: 4)
+
+            if status.isRunning {
+                cardButton("stop.fill", .red) { pm.stopService(item) }
+            } else {
+                cardButton("play.fill", .green) {
+                    pm.startService(item, project: project)
+                    overview = false
+                    workspace.selectService(item.id, in: project.id)
+                }
+            }
+            cardButton("arrow.clockwise", .secondary) {
+                pm.restartService(item, project: project)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.15), lineWidth: 0.5))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Çalışıyorsa terminaline git; değilse başlat + git.
+            if !status.isRunning { pm.startService(item, project: project) }
+            overview = false
+            workspace.selectService(item.id, in: project.id)
+        }
+        .help("\(item.name) — \(status.label)")
+    }
+
+    private func cardButton(_ symbol: String, _ tint: Color, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(Color.secondary.opacity(0.10)))
+        }
+        .buttonStyle(.plain)
     }
 }
