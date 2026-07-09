@@ -73,6 +73,8 @@ struct CanvasView: View {
     @State private var marqueeRect: CGRect?
     @State private var pressedItemID: UUID?
     @State private var bgPressActive = false
+    /// Sürükleme sırasında üzerine gelinen klasör (Finder gibi vurgulanır).
+    @State private var dropTargetID: UUID?
 
     // Klasör gezinme
     @State private var currentFolderID: UUID?
@@ -540,9 +542,20 @@ struct CanvasView: View {
     private func folderIcon(_ folder: CanvasItem) -> some View {
         let children = folderChildren(folder)
         let running = children.filter { pm.status(of: $0.id).isRunning }.count
+        let isDropTarget = dropTargetID == folder.id
         // Diğer objelerle birebir aynı 72×72 dolu IconView zemini; klasör
         // olduğu sembol + içerik sayacı rozetiyle belli olur.
         return IconView(spec: folder.icon, size: 72)
+            // Sürükleme sırasında hedefse Finder gibi vurgula (büyüt + halka).
+            .scaleEffect(isDropTarget ? 1.12 : 1)
+            .overlay {
+                if isDropTarget {
+                    RoundedRectangle(cornerRadius: 72 * 0.24, style: .continuous)
+                        .stroke(Color.white, lineWidth: 3)
+                        .shadow(color: folder.icon.color.opacity(0.8), radius: 8)
+                }
+            }
+            .animation(.easeOut(duration: 0.12), value: isDropTarget)
             .overlay(alignment: .bottomTrailing) {
                 if !children.isEmpty {
                     Text(running > 0 ? "\(running)/\(children.count)" : "\(children.count)")
@@ -610,24 +623,30 @@ struct CanvasView: View {
                 if draggingIDs.isEmpty, abs(dx) < 3, abs(dy) < 3 { return }
                 if draggingIDs.isEmpty { draggingIDs = selectedIDs }
                 dragOffset = value.translation
+                // Sürüklenen objenin merkezi hangi klasörün üstünde? (Finder vurgusu)
+                if currentFolderID == nil, movedItemsCanNest(draggingIDs) {
+                    let center = CGPoint(x: item.x + dx, y: item.y + dy)
+                    dropTargetID = dropTargetFolder(at: center, excluding: draggingIDs)?.id
+                } else {
+                    dropTargetID = nil
+                }
             }
             .onEnded { value in
                 pressedItemID = nil
                 let moved = draggingIDs
+                let target = dropTargetID
                 draggingIDs = []
                 dragOffset = .zero
+                dropTargetID = nil
                 guard !moved.isEmpty else {
                     releaseSelect(item)
                     return
                 }
 
-                // Obje(ler) bir klasörün üzerine bırakıldıysa içine taşı.
-                if currentFolderID == nil,
-                   let target = dropTargetFolder(at: CGPoint(x: item.x + value.translation.width,
-                                                             y: item.y + value.translation.height),
-                                                 excluding: moved),
-                   movedItemsCanNest(moved) {
-                    moveToFolder(ids: moved, folderID: target.id)
+                // Obje(ler) bir klasörün üzerine bırakıldıysa içine taşı
+                // (vurgu ile aynı hedef — tutarlı).
+                if let target, currentFolderID == nil, movedItemsCanNest(moved) {
+                    moveToFolder(ids: moved, folderID: target)
                     return
                 }
 
@@ -670,9 +689,10 @@ struct CanvasView: View {
     }
 
     private func dropTargetFolder(at point: CGPoint, excluding: Set<UUID>) -> CanvasItem? {
+        // Cömert isabet: ikon (72) yarısı + pay — örtüşme yeterli, Finder gibi.
         visibleItems.first { candidate in
             candidate.kind == .folder && !excluding.contains(candidate.id) &&
-            abs(candidate.x - point.x) < 52 && abs(candidate.y - point.y) < 58
+            abs(candidate.x - point.x) < 58 && abs(candidate.y - point.y) < 62
         }
     }
 
