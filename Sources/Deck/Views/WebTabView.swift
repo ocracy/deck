@@ -12,12 +12,19 @@ final class BrowserManager: ObservableObject {
 
     /// `initialURL` yalnız model ilk yaratılırken kullanılır; sonraki çağrılar
     /// mevcut modeli navigasyon yapmadan döndürür (URL değişimi WebTabView'daki
-    /// onChange ile ele alınır).
-    func model(forKey key: String, initialURL: String) -> BrowserModel {
-        if let existing = models[key] { return existing }
-        let model = BrowserModel(initialURL: initialURL)
+    /// onChange ile ele alınır). `incognito` mod değişirse eski model düşürülüp
+    /// doğru veri deposuyla yeniden yaratılır.
+    func model(forKey key: String, initialURL: String, incognito: Bool) -> BrowserModel {
+        if let existing = models[key], existing.incognito == incognito { return existing }
+        let model = BrowserModel(initialURL: initialURL, incognito: incognito)
         models[key] = model
         return model
+    }
+
+    /// Bir anahtarın modelini bırak — gizli (incognito) sekme kapanınca çağrılır
+    /// ki bir sonraki açılış sıfırdan (oturum açılmamış) gelsin.
+    func remove(forKey key: String) {
+        models.removeValue(forKey: key)
     }
 
     /// Tüm WKWebView'ları bırak (arka plan aktivitesi durur).
@@ -30,6 +37,8 @@ final class BrowserManager: ObservableObject {
 
 final class BrowserModel: NSObject, ObservableObject, WKUIDelegate, WKNavigationDelegate {
     let webView: WKWebView
+    /// Bu model gizli (nonPersistent) oturum mu — mod değişince yeniden yaratılır.
+    let incognito: Bool
     @Published var addressBar: String
     @Published var canGoBack: Bool = false
     @Published var canGoForward: Bool = false
@@ -46,11 +55,12 @@ final class BrowserModel: NSObject, ObservableObject, WKUIDelegate, WKNavigation
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) " +
         "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
-    init(initialURL: String) {
+    init(initialURL: String, incognito: Bool = false) {
+        self.incognito = incognito
         let config = WKWebViewConfiguration()
-        // Kalıcı veri deposu: çerez, localStorage, IndexedDB uygulama yeniden
-        // açılışlarında korunur.
-        config.websiteDataStore = .default()
+        // Gizli: bellekte yaşayan, diske yazmayan, izole depo (her açılışta temiz).
+        // Normal: kalıcı paylaşımlı depo (çerez/localStorage açılışlar arası korunur).
+        config.websiteDataStore = incognito ? .nonPersistent() : .default()
         config.allowsAirPlayForMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         // Web Inspector: KVC anahtarı + macOS 13.3+ isInspectable — ikisi birden.
@@ -191,14 +201,17 @@ struct WebTabView: View {
     let key: String
     let url: String
     let manager: BrowserManager
+    var incognito: Bool = false
 
     var body: some View {
-        BrowserPane(url: url, model: manager.model(forKey: key, initialURL: url))
+        BrowserPane(url: url, incognito: incognito,
+                    model: manager.model(forKey: key, initialURL: url, incognito: incognito))
     }
 }
 
 private struct BrowserPane: View {
     let url: String
+    var incognito: Bool = false
     @ObservedObject var model: BrowserModel
 
     var body: some View {
@@ -215,6 +228,13 @@ private struct BrowserPane: View {
 
     private var toolbar: some View {
         HStack(spacing: 12) {
+            if incognito {
+                Image(systemName: "eyeglasses")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .help("Private session — nothing is saved")
+            }
+
             navIcon(systemName: "chevron.left",
                     enabled: model.canGoBack,
                     help: "Back") {

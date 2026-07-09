@@ -357,7 +357,8 @@ struct WorkspaceView: View {
         if tab.kind == .web {
             WebTabView(key: webKey(tab),
                        url: tab.url ?? "http://localhost",
-                       manager: browser)
+                       manager: browser,
+                       incognito: tab.incognito)
         } else {
             TerminalHostView(key: terminalKey(tab), manager: pm)
         }
@@ -431,7 +432,8 @@ struct WorkspaceView: View {
             workspace.select(existing.id, in: project.id)
             return
         }
-        let tab = WorkspaceTab(kind: .web, title: item.name, itemID: item.id, url: item.url)
+        let tab = WorkspaceTab(kind: .web, title: item.name, itemID: item.id, url: item.url,
+                               incognito: item.webIncognito)
         workspace.addTab(tab, to: project.id, activate: true)
     }
 
@@ -439,7 +441,11 @@ struct WorkspaceView: View {
         switch tab.kind {
         case .claude:
             closeClaudeTab(tab)
-        case .service, .web:
+        case .web:
+            workspace.closeTab(tab.id, in: project.id)
+            // Gizli oturum: modeli düşür ki tekrar açılış sıfırdan (temiz) gelsin.
+            if tab.incognito { browser.remove(forKey: webKey(tab)) }
+        case .service:
             // Servis prosesi/PTY yaşamaya devam eder; yalnız sekme kapanır.
             workspace.closeTab(tab.id, in: project.id)
         case .shell, .oneshot:

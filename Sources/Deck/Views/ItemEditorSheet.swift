@@ -32,6 +32,7 @@ struct ItemEditorSheet: View {
     @State private var cwd: String
     @State private var autoStart: Bool
     @State private var urlText: String
+    @State private var webIncognito: Bool
     @State private var icon: IconSpec
     @State private var iconCustomized: Bool
     @State private var showIconPicker = false
@@ -67,6 +68,7 @@ struct ItemEditorSheet: View {
         _cwd = State(initialValue: item?.cwd ?? "")
         _autoStart = State(initialValue: item?.autoStart ?? false)
         _urlText = State(initialValue: item?.url ?? "")
+        _webIncognito = State(initialValue: item?.webIncognito ?? false)
         _icon = State(initialValue: item?.icon ?? Self.defaultIcon(for: k))
         _iconCustomized = State(initialValue: item != nil)
     }
@@ -187,6 +189,15 @@ struct ItemEditorSheet: View {
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     }
+                    row("") {
+                        Toggle("Open a fresh private session each time", isOn: $webIncognito)
+                            .font(.system(size: 12))
+                    }
+                    row("") {
+                        Text("No login is remembered — you sign in each time, isolated from other tabs.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
@@ -302,6 +313,7 @@ struct ItemEditorSheet: View {
             out.port = nil
             out.autoStart = false
             out.cwd = nil
+            out.webIncognito = webIncognito
             var u = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !u.contains("://") { u = "https://" + u }
             out.url = u

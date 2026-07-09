@@ -44,9 +44,11 @@ struct CanvasItem: Codable, Equatable, Identifiable, Hashable {
 
     // web
     var url: String?
+    /// Her açılışta temiz (nonPersistent) oturum — oturum hatırlanmaz, izole.
+    var webIncognito: Bool = false
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, name, icon, x, y, parentID, command, mode, port, autoStart, cwd, url
+        case id, kind, name, icon, x, y, parentID, command, mode, port, autoStart, cwd, url, webIncognito
     }
 
     init(kind: ItemKind, name: String, icon: IconSpec) {
@@ -70,6 +72,7 @@ struct CanvasItem: Codable, Equatable, Identifiable, Hashable {
         autoStart = try c.decodeIfPresent(Bool.self, forKey: .autoStart) ?? false
         cwd = try c.decodeIfPresent(String.self, forKey: .cwd)
         url = try c.decodeIfPresent(String.self, forKey: .url)
+        webIncognito = try c.decodeIfPresent(Bool.self, forKey: .webIncognito) ?? false
     }
 }
 
@@ -200,9 +203,11 @@ struct WorkspaceTab: Identifiable, Equatable {
     var url: String?
     var number: Int?            // claude sekme numarası ("Claude N")
     var customName: String?     // kullanıcının verdiği ad (pane title'ı ezer)
+    var incognito: Bool = false // web: her açılışta temiz oturum
 
     init(id: UUID = UUID(), kind: TabKind, title: String, tmuxSession: String? = nil,
-         itemID: UUID? = nil, url: String? = nil, number: Int? = nil, customName: String? = nil) {
+         itemID: UUID? = nil, url: String? = nil, number: Int? = nil, customName: String? = nil,
+         incognito: Bool = false) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -211,6 +216,7 @@ struct WorkspaceTab: Identifiable, Equatable {
         self.url = url
         self.number = number
         self.customName = customName
+        self.incognito = incognito
     }
 }
 

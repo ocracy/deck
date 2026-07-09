@@ -780,7 +780,8 @@ struct CanvasView: View {
         if let tab = workspace.tabs(for: project.id).first(where: { $0.kind == .web && $0.itemID == item.id }) {
             workspace.select(tab.id, in: project.id)
         } else {
-            workspace.addTab(WorkspaceTab(kind: .web, title: item.name, itemID: item.id, url: item.url),
+            workspace.addTab(WorkspaceTab(kind: .web, title: item.name, itemID: item.id,
+                                          url: item.url, incognito: item.webIncognito),
                              to: project.id, activate: true)
         }
         workspace.openWorkspace(project.id, true)
