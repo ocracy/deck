@@ -246,6 +246,20 @@ struct WorkspaceView: View {
                     .lineLimit(1)
             }
 
+            // Kalem: Claude sekmesini yeniden adlandır (çift tık da çalışır).
+            if tab.kind == .claude, !isRenaming {
+                Button {
+                    startRename(tab)
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 14, height: 14)
+                }
+                .buttonStyle(.plain)
+                .help("Rename tab")
+            }
+
             Button {
                 if isRenaming {
                     commitRename(tab)
