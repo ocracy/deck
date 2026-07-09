@@ -35,7 +35,10 @@ struct WorkspaceView: View {
 
     private var tabBar: some View {
         HStack(spacing: 8) {
-            PanelSwitcher(projectID: project.id, workspace: workspace)
+            Image(systemName: "rectangle.on.rectangle")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.trailing, 2)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {

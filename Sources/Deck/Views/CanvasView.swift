@@ -82,6 +82,7 @@ struct CanvasView: View {
     @FocusState private var renameFocused: Bool
     @State private var searchOpen = false
     @State private var showAISheet = false
+    @State private var quickLookID: UUID?
 
     @StateObject private var keys = CanvasKeyController()
 
@@ -117,6 +118,19 @@ struct CanvasView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 60)
                         .zIndex(10)
+                }
+                if let ql = quickLookItem {
+                    QuickLookOverlay(item: ql, project: liveProject, status: pm.status(of: ql.id),
+                                     onClose: { quickLookID = nil })
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .zIndex(20)
+                }
+
+                // Alttan ince bilgi çubuğu: seçili objenin dizini + komutu.
+                if let info = infoBarItem {
+                    bottomInfoBar(info)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .zIndex(5)
                 }
             }
             // Sürükleme ölçümü SABİT uzayda yapılmalı: ikonun kendi (local)
@@ -326,6 +340,78 @@ struct CanvasView: View {
         .padding(12)
     }
 
+    // MARK: - Quick Look + alt bilgi çubuğu
+
+    private var quickLookItem: CanvasItem? {
+        quickLookID.flatMap { id in liveProject.items.first { $0.id == id } }
+    }
+
+    private var infoBarItem: CanvasItem? {
+        guard selectedIDs.count == 1, let id = selectedIDs.first else { return nil }
+        return liveProject.items.first { $0.id == id }
+    }
+
+    /// Objenin görsel çalışma dizini (kök ise proje yolu, göreli ise çözülmüş).
+    private func displayCwd(_ item: CanvasItem) -> String {
+        let resolved = item.resolvedCwd(projectPath: liveProject.path)
+        return (resolved as NSString).abbreviatingWithTildeInPath
+    }
+
+    private func displayCommand(_ item: CanvasItem) -> String? {
+        switch item.kind {
+        case .web: return item.url
+        case .folder: return nil
+        case .claude: return "claude"
+        case .terminal:
+            guard let c = item.command, !c.isEmpty else { return nil }
+            return c
+        }
+    }
+
+    private func bottomInfoBar(_ item: CanvasItem) -> some View {
+        HStack(spacing: 10) {
+            if item.kind == .terminal, item.mode == .service {
+                Circle().fill(pm.status(of: item.id).color).frame(width: 7, height: 7)
+            }
+            Text(item.name)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+            if let port = item.port {
+                Text(verbatim: ":\(port)")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color(hex: "#38BDF8"))
+            }
+            Divider().frame(height: 12)
+            Image(systemName: "folder")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+            Text(displayCwd(item))
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.75))
+                .lineLimit(1)
+            if let cmd = displayCommand(item) {
+                Divider().frame(height: 12)
+                Image(systemName: item.kind == .web ? "link" : "chevron.right")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                Text(cmd)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Color(hex: "#8FE388"))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer(minLength: 0)
+            Text("Space: önizleme")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary.opacity(0.7))
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 26)
+        .frame(maxWidth: .infinity)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) { Divider().opacity(0.4) }
+    }
+
     // MARK: - İkon görünümü
 
     private func position(for item: CanvasItem) -> CGPoint {
@@ -438,31 +524,21 @@ struct CanvasView: View {
     private func folderIcon(_ folder: CanvasItem) -> some View {
         let children = folderChildren(folder)
         let running = children.filter { pm.status(of: $0.id).isRunning }.count
-        return ZStack {
-            Image(systemName: "folder.fill")
-                .font(.system(size: 58))
-                .foregroundStyle(
-                    LinearGradient(colors: [folder.icon.color, folder.icon.color.opacity(0.7)],
-                                   startPoint: .top, endPoint: .bottom)
-                )
-            if !children.isEmpty {
-                Text(running > 0 ? "\(running)/\(children.count)" : "\(children.count)")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .offset(y: 6)
+        // Diğer objelerle birebir aynı 72×72 dolu IconView zemini; klasör
+        // olduğu sembol + içerik sayacı rozetiyle belli olur.
+        return IconView(spec: folder.icon, size: 72)
+            .overlay(alignment: .bottomTrailing) {
+                if !children.isEmpty {
+                    Text(running > 0 ? "\(running)/\(children.count)" : "\(children.count)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(running > 0 ? Color.green : Color.black.opacity(0.55)))
+                        .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.5))
+                        .offset(x: 4, y: 4)
+                }
             }
-        }
-        .frame(width: 72, height: 72)
-        .overlay(alignment: .bottomTrailing) {
-            if running > 0 {
-                Circle()
-                    .fill(Color.green)
-                    .frame(width: 11, height: 11)
-                    .overlay(Circle().stroke(Color.black.opacity(0.6), lineWidth: 1.5))
-                    .offset(x: 3, y: 3)
-            }
-        }
-        .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
     }
 
     private func serviceControls(_ item: CanvasItem, status: ServiceStatus) -> some View {
@@ -529,12 +605,12 @@ struct CanvasView: View {
                     return
                 }
 
-                // Servis(ler) bir klasörün üzerine bırakıldıysa içine taşı.
+                // Obje(ler) bir klasörün üzerine bırakıldıysa içine taşı.
                 if currentFolderID == nil,
                    let target = dropTargetFolder(at: CGPoint(x: item.x + value.translation.width,
                                                              y: item.y + value.translation.height),
                                                  excluding: moved),
-                   movedItemsAreAllServices(moved) {
+                   movedItemsCanNest(moved) {
                     moveToFolder(ids: moved, folderID: target.id)
                     return
                 }
@@ -580,14 +656,16 @@ struct CanvasView: View {
     private func dropTargetFolder(at point: CGPoint, excluding: Set<UUID>) -> CanvasItem? {
         visibleItems.first { candidate in
             candidate.kind == .folder && !excluding.contains(candidate.id) &&
-            abs(candidate.x - point.x) < 44 && abs(candidate.y - point.y) < 50
+            abs(candidate.x - point.x) < 52 && abs(candidate.y - point.y) < 58
         }
     }
 
-    private func movedItemsAreAllServices(_ ids: Set<UUID>) -> Bool {
-        ids.allSatisfy { id in
+    /// Klasöre girebilir mi? Klasörün kendisi ve sabit Claude ikonu hariç
+    /// her obje (servis, komut, terminal, web) klasöre atılabilir.
+    private func movedItemsCanNest(_ ids: Set<UUID>) -> Bool {
+        !ids.isEmpty && ids.allSatisfy { id in
             liveProject.items.first { $0.id == id }.map {
-                $0.kind == .terminal && $0.mode == .service
+                $0.kind != .folder && $0.kind != .claude
             } ?? false
         }
     }
@@ -712,7 +790,7 @@ struct CanvasView: View {
                 for o in oneshots { pm.runBackground(o, project: liveProject) }
             }
         }
-        if !services.isEmpty, services.count == items.count {
+        if currentFolderID == nil, movedItemsCanNest(selectedIDs) {
             moveToFolderMenu(ids: selectedIDs)
         }
         Divider()
@@ -770,11 +848,6 @@ struct CanvasView: View {
                         pm.killPort(port, feedbackKey: item.id.uuidString)
                     }
                 }
-                if item.parentID == nil {
-                    moveToFolderMenu(ids: [item.id])
-                } else {
-                    Button("Klasörden Çıkar") { moveToFolder(ids: [item.id], folderID: nil) }
-                }
                 Divider()
                 commonItemButtons(item)
             case .oneshot:
@@ -804,6 +877,11 @@ struct CanvasView: View {
 
     @ViewBuilder
     private func commonItemButtons(_ item: CanvasItem) -> some View {
+        if item.parentID == nil {
+            moveToFolderMenu(ids: [item.id])
+        } else {
+            Button("Klasörden Çıkar") { moveToFolder(ids: [item.id], folderID: nil) }
+        }
         Button("Yeniden Adlandır") { beginRename(item) }
         Button("Düzenle...") { editor = EditorContext(item: item, spawn: nil) }
         Button("Kopyala") { selectedIDs = [item.id]; copySelection() }
@@ -1008,6 +1086,13 @@ struct CanvasView: View {
         }
 
         switch event.keyCode {
+        case 49: // Space — Quick Look önizleme (aç/kapat)
+            if quickLookID != nil { quickLookID = nil; return true }
+            guard selectedIDs.count == 1, let id = selectedIDs.first,
+                  let item = liveProject.items.first(where: { $0.id == id }),
+                  item.kind != .claude else { return false }
+            quickLookID = id
+            return true
         case 36, 76: // Enter — seçiliyi yeniden adlandır
             guard selectedIDs.count == 1,
                   let item = liveProject.items.first(where: { $0.id == selectedIDs.first! }),
@@ -1015,6 +1100,7 @@ struct CanvasView: View {
             beginRename(item)
             return true
         case 53: // Esc
+            if quickLookID != nil { quickLookID = nil; return true }
             if searchOpen { searchOpen = false; return true }
             if renamingItemID != nil { cancelRename(); return true }
             if !selectedIDs.isEmpty { selectedIDs = []; return true }
@@ -1036,6 +1122,134 @@ struct CanvasView: View {
         }
         selectedIDs = [item.id]
         doubleClick(item)
+    }
+}
+
+// MARK: - Quick Look önizleme (Space)
+
+private struct QuickLookOverlay: View {
+    let item: CanvasItem
+    let project: Project
+    let status: ServiceStatus
+    let onClose: () -> Void
+
+    private var kindLabel: String {
+        switch item.kind {
+        case .folder: return "Klasör"
+        case .web: return "Web"
+        case .claude: return "Claude"
+        case .terminal:
+            switch item.mode ?? .shell {
+            case .service: return "Servis"
+            case .oneshot: return "Komut"
+            case .shell: return "Terminal"
+            }
+        }
+    }
+
+    private var resolvedCwd: String {
+        (item.resolvedCwd(projectPath: project.path) as NSString).abbreviatingWithTildeInPath
+    }
+
+    var body: some View {
+        ZStack {
+            // Karartılmış zemin — tıklayınca kapanır.
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture { onClose() }
+
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 12) {
+                    if item.kind == .web {
+                        IconView(spec: item.icon, size: 44)
+                    } else if item.kind == .folder {
+                        IconView(spec: item.icon, size: 44)
+                    } else {
+                        IconView(spec: item.icon, size: 44)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.name)
+                            .font(.system(size: 17, weight: .bold))
+                        HStack(spacing: 6) {
+                            Text(kindLabel)
+                                .font(.system(size: 11, weight: .semibold))
+                                .padding(.horizontal, 7).padding(.vertical, 2)
+                                .background(Capsule().fill(Color.secondary.opacity(0.2)))
+                            if item.kind == .terminal, item.mode == .service {
+                                HStack(spacing: 4) {
+                                    Circle().fill(status.color).frame(width: 7, height: 7)
+                                    Text(status.label)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(status.color)
+                                }
+                            }
+                        }
+                    }
+                    Spacer()
+                    Button { onClose() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(16)
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 12) {
+                    infoRow("Çalışma dizini", systemImage: "folder", value: resolvedCwd)
+                    if let port = item.port {
+                        infoRow("Port", systemImage: "network", value: ":\(port)",
+                                tint: Color(hex: "#38BDF8"))
+                    }
+                    if item.kind == .web, let url = item.url {
+                        infoRow("Adres", systemImage: "link", value: url, tint: Color(hex: "#38BDF8"))
+                    }
+                    if item.kind == .terminal, let cmd = item.command, !cmd.isEmpty {
+                        infoRow("Komut", systemImage: "chevron.right", value: cmd,
+                                tint: Color(hex: "#8FE388"), mono: true)
+                    }
+                    if item.kind == .terminal, item.mode == .service {
+                        HStack(spacing: 8) {
+                            Image(systemName: status.isRunning ? "checkmark.circle.fill" : "pause.circle.fill")
+                                .foregroundStyle(status.isRunning ? .green : .secondary)
+                            Text(status.isRunning
+                                 ? (item.port != nil ? "Çalışıyor — :\(item.port!) dinleniyor" : "Çalışıyor")
+                                 : "Şu an çalışmıyor")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(status.isRunning ? .green : .secondary)
+                        }
+                    }
+                }
+                .padding(16)
+
+                Text("Kapatmak için Space veya Esc")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary.opacity(0.7))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.bottom, 12)
+            }
+            .frame(width: 460)
+            .background(RoundedRectangle(cornerRadius: 14).fill(.ultraThickMaterial))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+            .shadow(color: .black.opacity(0.5), radius: 30, y: 12)
+        }
+    }
+
+    private func infoRow(_ label: String, systemImage: String, value: String,
+                         tint: SwiftUI.Color = .primary, mono: Bool = false) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Label(label, systemImage: systemImage)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 110, alignment: .leading)
+            Text(value)
+                .font(.system(size: 12, design: mono ? .monospaced : .default))
+                .foregroundStyle(tint)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 

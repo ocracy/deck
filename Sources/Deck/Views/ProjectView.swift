@@ -218,40 +218,18 @@ struct ProjectView: View {
             Spacer()
 
             if runningServiceCount > 0 {
-                Button {
-                    workspace.openServicePanel(project.id, !isServicePanelOpen)
-                } label: {
-                    HStack(spacing: 5) {
-                        Circle().fill(Color.green).frame(width: 7, height: 7)
-                        Text("\(runningServiceCount) servis çalışıyor")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.green)
-                        Image(systemName: isServicePanelOpen ? "chevron.down" : "chevron.up")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(.green.opacity(0.7))
-                    }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.green.opacity(isServicePanelOpen ? 0.18 : 0.10)))
+                HStack(spacing: 5) {
+                    Circle().fill(Color.green).frame(width: 7, height: 7)
+                    Text("\(runningServiceCount) çalışıyor")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.green)
                 }
-                .buttonStyle(.plain)
-                .help("Servis panelini aç/kapat (⌘J)")
-                .padding(.trailing, 6)
+                .padding(.trailing, 4)
             }
 
-            Button {
-                workspace.openWorkspace(project.id, !isWorkspaceOpen)
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: isWorkspaceOpen ? "chevron.down" : "rectangle.topthird.inset.filled")
-                        .font(.system(size: 10, weight: .semibold))
-                    Text("Workspace")
-                        .font(.system(size: 12, weight: .medium))
-                }
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .help("Workspace'i aç/kapat (⌘B)")
+            // Workspace ↔ Servisler geçişi burada — sekme hizasında değil,
+            // proje barında (⌘B / ⌘J kısayollarıyla).
+            PanelSwitcher(projectID: project.id, workspace: workspace)
         }
         .padding(.horizontal, 12)
         .frame(height: 44)

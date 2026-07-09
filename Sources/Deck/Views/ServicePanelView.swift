@@ -44,8 +44,6 @@ struct ServicePanelView: View {
 
     private var bar: some View {
         HStack(spacing: 8) {
-            PanelSwitcher(projectID: project.id, workspace: workspace)
-
             // "Servisler" başlığı: tıklanınca tüm servislere genel bakış.
             Button {
                 overview = true
