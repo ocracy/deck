@@ -1,14 +1,15 @@
 import SwiftUI
 import AppKit
 
-/// Editörde sunulan öğe türleri (claude sunulmaz).
+/// Editörde sunulan öğe türleri.
 enum ItemEditorKind: String, CaseIterable, Identifiable {
-    case service, oneshot, shell, web
+    case claude, service, oneshot, shell, web
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
+        case .claude: return "Claude"
         case .service: return "Servis"
         case .oneshot: return "Komut"
         case .shell: return "Terminal"
@@ -45,9 +46,11 @@ struct ItemEditorSheet: View {
 
         let k: ItemEditorKind
         if let item {
-            if item.kind == .web {
-                k = .web
-            } else {
+            switch item.kind {
+            case .claude: k = .claude
+            case .web: k = .web
+            case .folder: k = .shell   // klasör editörde düzenlenmez
+            case .terminal:
                 switch item.mode ?? .shell {
                 case .service: k = .service
                 case .oneshot: k = .oneshot
@@ -70,6 +73,7 @@ struct ItemEditorSheet: View {
 
     static func defaultIcon(for kind: ItemEditorKind) -> IconSpec {
         switch kind {
+        case .claude: return .claude
         case .service: return IconSpec(symbol: "server.rack", isEmoji: false, colorHex: "#3DDC84")
         case .oneshot: return IconSpec(symbol: "bolt.fill", isEmoji: false, colorHex: "#F7B955")
         case .shell: return .defaultTerminal
@@ -86,11 +90,15 @@ struct ItemEditorSheet: View {
         switch kind {
         case .service, .oneshot:
             return !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .shell:
+        case .shell, .claude:
             return true
         case .web:
             return !urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
+    }
+
+    private var hasInitialCommand: Bool {
+        !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -112,24 +120,47 @@ struct ItemEditorSheet: View {
                         .textFieldStyle(.roundedBorder)
                 }
 
-                row("Görsel") {
-                    Button {
-                        showIconPicker.toggle()
-                    } label: {
-                        HStack(spacing: 8) {
-                            IconView(spec: icon, size: 34)
-                            Text("Değiştir")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                // Claude'un görseli markaya özel (sabit); diğerlerinde seçilebilir.
+                if kind != .claude {
+                    row("Görsel") {
+                        Button {
+                            showIconPicker.toggle()
+                        } label: {
+                            HStack(spacing: 8) {
+                                IconView(spec: icon, size: 34)
+                                Text("Değiştir")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                    }
-                    .buttonStyle(.plain)
-                    .popover(isPresented: $showIconPicker, arrowEdge: .trailing) {
-                        IconPicker(spec: $icon)
+                        .buttonStyle(.plain)
+                        .popover(isPresented: $showIconPicker, arrowEdge: .trailing) {
+                            IconPicker(spec: $icon)
+                        }
                     }
                 }
 
                 switch kind {
+                case .claude:
+                    row("Başlangıç komutu") {
+                        TextField("opsiyonel — boşsa Claude boş açılır", text: $command)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                    }
+                    cwdRow
+                    if hasInitialCommand {
+                        row("") {
+                            Toggle("Açılınca komutu otomatik çalıştır", isOn: $autoStart)
+                                .font(.system(size: 12))
+                        }
+                        row("") {
+                            Text(autoStart
+                                 ? "Claude açılır ve komut hemen gönderilir."
+                                 : "Komut girdi kutusuna yazılır; göndermek için Enter'a bas.")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 case .service:
                     commandRow
                     row("Port") {
@@ -182,6 +213,7 @@ struct ItemEditorSheet: View {
 
     private var placeholderName: String {
         switch kind {
+        case .claude: return "örn. Backend Claude"
         case .service: return "örn. Dev Server"
         case .oneshot: return "örn. Optimize"
         case .shell: return "örn. Terminal"
@@ -252,6 +284,17 @@ struct ItemEditorSheet: View {
         out.icon = icon
 
         switch kind {
+        case .claude:
+            out.kind = .claude
+            out.mode = nil
+            out.port = nil
+            out.url = nil
+            out.icon = .claude
+            let cmd = command.trimmingCharacters(in: .whitespacesAndNewlines)
+            out.command = cmd.isEmpty ? nil : cmd          // initial_command
+            out.autoStart = cmd.isEmpty ? false : autoStart // otomatik çalıştır (yalnız komut varsa)
+            let dir = cwd.trimmingCharacters(in: .whitespacesAndNewlines)
+            out.cwd = dir.isEmpty ? nil : dir
         case .web:
             out.kind = .web
             out.mode = nil

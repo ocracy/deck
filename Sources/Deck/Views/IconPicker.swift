@@ -37,36 +37,52 @@ struct ClaudeIconView: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                .fill(Color(hex: "#EEECE2"))
-                .overlay(
-                    RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                        .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: size * 0.235, style: .continuous)
+                .fill(
+                    LinearGradient(colors: [Color(hex: "#F0EEE4"), Color(hex: "#E7E3D6")],
+                                   startPoint: .top, endPoint: .bottom)
                 )
-            ClaudeStarburst()
-                .stroke(Color(hex: "#D97757"),
-                        style: StrokeStyle(lineWidth: size * 0.085, lineCap: .round))
-                .frame(width: size * 0.58, height: size * 0.58)
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.235, style: .continuous)
+                        .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
+                )
+            ClaudeSunburst()
+                .fill(Color(hex: "#D97757"))
+                .frame(width: size * 0.62, height: size * 0.62)
         }
         .frame(width: size, height: size)
         .shadow(color: .black.opacity(0.35), radius: size * 0.08, y: size * 0.04)
     }
 }
 
-/// Claude logosundaki sunburst: merkezden dışa 12 ışın, hafif organik uzunluklar.
-struct ClaudeStarburst: Shape {
+/// Claude'un sunburst sembolü: merkezden dışa uzanan, uçları yuvarlatılmış
+/// kalınca "ışık patlaması" ışınları (dolu şekil — çizgi değil, daha tanınır).
+struct ClaudeSunburst: Shape {
     func path(in rect: CGRect) -> Path {
-        var p = Path()
         let c = CGPoint(x: rect.midX, y: rect.midY)
         let rOut = min(rect.width, rect.height) / 2
-        let rIn = rOut * 0.30
-        let rays = 12
+        let rays = 11
+        let halfW = (2 * .pi / CGFloat(rays)) * 0.19   // ışın yarı-genişliği (açı)
+        var p = Path()
         for i in 0..<rays {
-            let a = (CGFloat(i) / CGFloat(rays)) * 2 * .pi - .pi / 2 + .pi / CGFloat(rays)
-            let len = rOut * (i % 3 == 0 ? 1.0 : (i % 3 == 1 ? 0.86 : 0.94))
-            p.move(to: CGPoint(x: c.x + cos(a) * rIn, y: c.y + sin(a) * rIn))
-            p.addLine(to: CGPoint(x: c.x + cos(a) * len, y: c.y + sin(a) * len))
+            let a = (CGFloat(i) / CGFloat(rays)) * 2 * .pi - .pi / 2
+            // Merkeze yakın dar taban → dışta yuvarlak uç (damla/ışın formu).
+            let baseR = rOut * 0.14
+            let tipR = rOut * (i % 2 == 0 ? 1.0 : 0.82)
+            let bl = CGPoint(x: c.x + cos(a - halfW) * baseR, y: c.y + sin(a - halfW) * baseR)
+            let br = CGPoint(x: c.x + cos(a + halfW) * baseR, y: c.y + sin(a + halfW) * baseR)
+            let tl = CGPoint(x: c.x + cos(a - halfW * 0.5) * tipR, y: c.y + sin(a - halfW * 0.5) * tipR)
+            let tr = CGPoint(x: c.x + cos(a + halfW * 0.5) * tipR, y: c.y + sin(a + halfW * 0.5) * tipR)
+            let tip = CGPoint(x: c.x + cos(a) * (tipR + rOut * 0.05), y: c.y + sin(a) * (tipR + rOut * 0.05))
+            p.move(to: bl)
+            p.addLine(to: tl)
+            p.addQuadCurve(to: tr, control: tip)
+            p.addLine(to: br)
+            p.closeSubpath()
         }
+        // Merkez göbek.
+        p.addEllipse(in: CGRect(x: c.x - rOut * 0.16, y: c.y - rOut * 0.16,
+                                width: rOut * 0.32, height: rOut * 0.32))
         return p
     }
 }

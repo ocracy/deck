@@ -255,7 +255,8 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
     /// `-A` inner komutu çalıştırır, yani Claude yeniden başlar.
     func startClaude(tabID: UUID, project: Project, number: Int, customName: String?,
                      resume: ClaudeResumeOptions?, existingSession: String?,
-                     initialPrompt: String? = nil) {
+                     initialCommand: String? = nil, autoRun: Bool = false,
+                     cwdOverride: String? = nil) {
         let key = tabID.uuidString
         // Çift reattach koruması: bootstrap + ProjectView.onAppear ikisi de
         // reattach edebilir; process.running henüz true olmadan ikinci çağrı
@@ -269,7 +270,8 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
         if existingSession == nil { removeStateFile(key) }
 
         let session = existingSession ?? key
-        let expandedCwd = (project.path as NSString).expandingTildeInPath
+        let rawCwd = cwdOverride.map { ($0 as NSString).expandingTildeInPath }
+        let expandedCwd = rawCwd ?? (project.path as NSString).expandingTildeInPath
         let cols = max(80, view.getTerminal().cols)
         let rows = max(24, view.getTerminal().rows)
         let tabName = customName ?? "Claude \(number)"
@@ -282,12 +284,14 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
         env.append("LINES=\(rows)")
         for (k, v) in hookEnv { env.append("\(k)=\(v)") }
 
+        let trimmedInitial = initialCommand?.trimmingCharacters(in: .whitespacesAndNewlines)
         let command: String
         if let resume {
             command = ClaudeSessionService.resumeCommand(resume)
             tabSIDs[tabID] = resume.sessionID
-        } else if let initialPrompt, !initialPrompt.isEmpty {
-            command = "claude \(Shell.singleQuoted(initialPrompt))"
+        } else if let ic = trimmedInitial, !ic.isEmpty, autoRun {
+            // Otomatik çalıştır: komut argüman olarak verilir, hemen işlenir.
+            command = "claude \(Shell.singleQuoted(ic))"
         } else {
             command = "claude"
         }
@@ -309,6 +313,15 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
         // Spawn tamamlandı; kısa süre sonra guard'ı kaldır (process.running
         // artık true; sonraki reattach oradan return eder).
         afterMain(1.0) { [weak self] in self?.startingClaudeKeys.remove(key) }
+
+        // Otomatik çalıştır KAPALI + komut varsa: Claude arayüzü açıldıktan sonra
+        // komutu girdi kutusuna yaz (Enter YOK — kullanıcı görüp kendi gönderir).
+        if existingSession == nil, resume == nil, !autoRun,
+           let ic = trimmedInitial, !ic.isEmpty {
+            afterMain(1.6) { [weak self] in
+                self?.sendInput(key: key, data: Array(ic.utf8))
+            }
+        }
 
         if TmuxService.isAvailable {
             // Metadata'yı yalnız YENİ oturumda damgala; reattach'te zaten yazılı

@@ -170,7 +170,8 @@ struct CanvasView: View {
                     ClaudeTabLauncher.open(project: liveProject, workspace: workspace,
                                            tabStore: tabStore, pm: pm,
                                            customName: "AI Kurulum",
-                                           initialPrompt: DeckFileService.aiPrompt(for: liveProject, note: note))
+                                           initialCommand: DeckFileService.aiPrompt(for: liveProject, note: note),
+                                           autoRun: true)
                 }
             }
         }
@@ -267,6 +268,7 @@ struct CanvasView: View {
     private func emptyAreaMenu(size: CGSize) -> some View {
         Button("AI ile Oluştur ✨") { createWithAI() }
         Divider()
+        Button("Yeni Claude") { newItem(.claude, size: size) }
         Button("Yeni Servis") { newItem(.service, size: size) }
         Button("Yeni Komut") { newItem(.oneshot, size: size) }
         Button("Yeni Terminal") { newItem(.shell, size: size) }
@@ -296,6 +298,17 @@ struct CanvasView: View {
 
     private func createWithAI() {
         showAISheet = true
+    }
+
+    /// Claude ikonunun ayarlarıyla (başlangıç komutu + otomatik çalıştır +
+    /// dizin) yeni bir Claude sekmesi açar.
+    private func launchClaude(_ item: CanvasItem) {
+        ClaudeTabLauncher.open(project: liveProject, workspace: workspace,
+                               tabStore: tabStore, pm: pm,
+                               customName: item.name == "Claude" ? nil : item.name,
+                               initialCommand: item.command,
+                               autoRun: item.autoStart,
+                               cwd: item.cwd)
     }
 
     /// Mevcut ikonlarla çakışmayan ilk boş yuva (görünür katmanda).
@@ -361,7 +374,9 @@ struct CanvasView: View {
         switch item.kind {
         case .web: return item.url
         case .folder: return nil
-        case .claude: return "claude"
+        case .claude:
+            guard let c = item.command, !c.isEmpty else { return "claude (boş)" }
+            return item.autoStart ? "claude → \(c)" : "claude, hazır: \(c)"
         case .terminal:
             guard let c = item.command, !c.isEmpty else { return nil }
             return c
@@ -661,12 +676,11 @@ struct CanvasView: View {
     }
 
     /// Klasöre girebilir mi? Klasörün kendisi ve sabit Claude ikonu hariç
-    /// her obje (servis, komut, terminal, web) klasöre atılabilir.
+    /// her obje (Claude, servis, komut, terminal, web) klasöre atılabilir;
+    /// yalnız klasörün kendisi iç içe girmez.
     private func movedItemsCanNest(_ ids: Set<UUID>) -> Bool {
         !ids.isEmpty && ids.allSatisfy { id in
-            liveProject.items.first { $0.id == id }.map {
-                $0.kind != .folder && $0.kind != .claude
-            } ?? false
+            liveProject.items.first { $0.id == id }.map { $0.kind != .folder } ?? false
         }
     }
 
@@ -697,7 +711,7 @@ struct CanvasView: View {
     private func doubleClick(_ item: CanvasItem) {
         switch item.kind {
         case .claude:
-            ClaudeTabLauncher.open(project: liveProject, workspace: workspace, tabStore: tabStore, pm: pm)
+            launchClaude(item)
         case .web:
             openWebTab(item)
         case .folder:
@@ -802,12 +816,15 @@ struct CanvasView: View {
     private func singleMenu(for item: CanvasItem, status: ServiceStatus) -> some View {
         switch item.kind {
         case .claude:
-            Button("Yeni Claude Sekmesi") {
-                ClaudeTabLauncher.open(project: liveProject, workspace: workspace, tabStore: tabStore, pm: pm)
-            }
+            Button("Yeni Claude Sekmesi") { launchClaude(item) }
             Button("Geçmişi Sürdür...") { showResumeSheet = true }
             Button("AI ile Oluştur ✨") { createWithAI() }
             closedTabsMenu
+            Divider()
+            if item.parentID == nil { moveToFolderMenu(ids: [item.id]) }
+            Button("Düzenle...") { editor = EditorContext(item: item, spawn: nil) }
+            Button("Kopyala") { selectedIDs = [item.id]; copySelection() }
+            Button("Sil", role: .destructive) { deleteItems([item.id]) }
         case .web:
             Button("Aç") { openWebTab(item) }
             Divider()
@@ -922,7 +939,7 @@ struct CanvasView: View {
 
     private func copySelection() {
         var out: [CanvasItem] = []
-        for item in selectedItems where item.kind != .claude {
+        for item in selectedItems {
             out.append(item)
             if item.kind == .folder {
                 out.append(contentsOf: folderChildren(item))
@@ -983,7 +1000,6 @@ struct CanvasView: View {
                 proj.items[idx].parentID = nil
             }
         }
-        toDelete.remove(claudeItemID(in: proj))   // sabit Claude ikonu silinemez
 
         for id in toDelete {
             guard let item = proj.items.first(where: { $0.id == id }) else { continue }
@@ -1005,10 +1021,6 @@ struct CanvasView: View {
         Task.detached(priority: .utility) {
             DeckFileService.removeEntries(matching: removed, projectPath: path)
         }
-    }
-
-    private func claudeItemID(in proj: Project) -> UUID {
-        proj.items.first { $0.kind == .claude }?.id ?? UUID()
     }
 
     // MARK: - Yeniden adlandırma
@@ -1089,14 +1101,13 @@ struct CanvasView: View {
         case 49: // Space — Quick Look önizleme (aç/kapat)
             if quickLookID != nil { quickLookID = nil; return true }
             guard selectedIDs.count == 1, let id = selectedIDs.first,
-                  let item = liveProject.items.first(where: { $0.id == id }),
-                  item.kind != .claude else { return false }
+                  liveProject.items.contains(where: { $0.id == id }) else { return false }
             quickLookID = id
             return true
         case 36, 76: // Enter — seçiliyi yeniden adlandır
             guard selectedIDs.count == 1,
-                  let item = liveProject.items.first(where: { $0.id == selectedIDs.first! }),
-                  item.kind != .claude else { return false }
+                  let item = liveProject.items.first(where: { $0.id == selectedIDs.first! })
+            else { return false }
             beginRename(item)
             return true
         case 53: // Esc
@@ -1160,10 +1171,8 @@ private struct QuickLookOverlay: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 12) {
-                    if item.kind == .web {
-                        IconView(spec: item.icon, size: 44)
-                    } else if item.kind == .folder {
-                        IconView(spec: item.icon, size: 44)
+                    if item.kind == .claude {
+                        ClaudeIconView(size: 44)
                     } else {
                         IconView(spec: item.icon, size: 44)
                     }
@@ -1209,6 +1218,18 @@ private struct QuickLookOverlay: View {
                     if item.kind == .terminal, let cmd = item.command, !cmd.isEmpty {
                         infoRow("Komut", systemImage: "chevron.right", value: cmd,
                                 tint: Color(hex: "#8FE388"), mono: true)
+                    }
+                    if item.kind == .claude {
+                        if let cmd = item.command, !cmd.isEmpty {
+                            infoRow("Başlangıç komutu", systemImage: "chevron.right", value: cmd,
+                                    tint: Color(hex: "#8FE388"), mono: true)
+                            infoRow("Otomatik çalıştır", systemImage: "play.circle",
+                                    value: item.autoStart ? "Evet — açılınca hemen gönderilir"
+                                                          : "Hayır — girdi kutusuna yazılır")
+                        } else {
+                            infoRow("Başlangıç komutu", systemImage: "chevron.right",
+                                    value: "yok — boş açılır")
+                        }
                     }
                     if item.kind == .terminal, item.mode == .service {
                         HStack(spacing: 8) {
@@ -1315,7 +1336,7 @@ private struct SearchPalette: View {
 
     private var results: [CanvasItem] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        let all = project.items.filter { $0.kind != .claude }
+        let all = project.items
         guard !q.isEmpty else { return Array(all.prefix(8)) }
         return Array(all.filter { $0.name.lowercased().contains(q) }.prefix(8))
     }
@@ -1344,7 +1365,9 @@ private struct SearchPalette: View {
                             onPick(item)
                         } label: {
                             HStack(spacing: 10) {
-                                if item.kind == .folder {
+                                if item.kind == .claude {
+                                    ClaudeIconView(size: 22)
+                                } else if item.kind == .folder {
                                     Image(systemName: "folder.fill")
                                         .foregroundStyle(item.icon.color)
                                         .frame(width: 22)

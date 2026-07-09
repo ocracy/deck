@@ -12,7 +12,9 @@ enum ClaudeTabLauncher {
                      pm: ProcessManager,
                      resume: ClaudeResumeOptions? = nil,
                      customName: String? = nil,
-                     initialPrompt: String? = nil) {
+                     initialCommand: String? = nil,
+                     autoRun: Bool = false,
+                     cwd: String? = nil) {
         let number = tabStore.nextNumber(for: project.id)
         let tabID = UUID()
         let tab = WorkspaceTab(id: tabID,
@@ -28,7 +30,9 @@ enum ClaudeTabLauncher {
                        customName: customName,
                        resume: resume,
                        existingSession: nil,
-                       initialPrompt: initialPrompt)
+                       initialCommand: initialCommand,
+                       autoRun: autoRun,
+                       cwdOverride: cwd)
         workspace.openWorkspace(project.id, true)
     }
 
@@ -210,10 +214,26 @@ struct ProjectView: View {
             .buttonStyle(.plain)
             .help("Projelere dön")
 
-            IconView(spec: project.icon, size: 24)
-            Text(project.name)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
+            // Proje ikonu + adı: tıklayınca masaüstüne (ikonlara) dön.
+            Button {
+                workspace.openWorkspace(project.id, false)
+                workspace.openServicePanel(project.id, false)
+            } label: {
+                HStack(spacing: 8) {
+                    IconView(spec: project.icon, size: 24)
+                    Text(project.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                    if isWorkspaceOpen || isServicePanelOpen {
+                        Image(systemName: "house.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Masaüstüne dön")
 
             Spacer()
 
