@@ -438,26 +438,24 @@ struct WorkspaceView: View {
     }
 
     private func close(_ tab: WorkspaceTab) {
-        switch tab.kind {
-        case .claude:
-            closeClaudeTab(tab)
-        case .web:
-            workspace.closeTab(tab.id, in: project.id)
-            // Gizli oturum: modeli düşür ki tekrar açılış sıfırdan (temiz) gelsin.
-            if tab.incognito { browser.remove(forKey: webKey(tab)) }
-        case .service:
-            // Servis prosesi/PTY yaşamaya devam eder; yalnız sekme kapanır.
-            workspace.closeTab(tab.id, in: project.id)
-        case .shell, .oneshot:
-            pm.closeTab(tabID: tab.id, killTmux: false)
-            workspace.closeTab(tab.id, in: project.id)
-        }
-    }
-
-    /// Sekme UI'dan ANINDA düşer; sid okuma + tmux kill + kayıt arka planda.
-    private func closeClaudeTab(_ tab: WorkspaceTab) {
+        // 1) Sekmeyi UI'dan ANINDA düşür — kullanıcı gecikme görmesin.
         workspace.closeTab(tab.id, in: project.id)
-        ClaudeTabLauncher.finishClose(tab, projectID: project.id, tabStore: tabStore, pm: pm)
+        // 2) Ağır temizliği (SwiftTerm/WKWebView dealloc, tmux kill) bir sonraki
+        //    runloop'a ertele; arayüz önce güncellenir, kapanış anlık hissedilir.
+        let wkey = webKey(tab)
+        DispatchQueue.main.async {
+            switch tab.kind {
+            case .claude:
+                ClaudeTabLauncher.finishClose(tab, projectID: project.id, tabStore: tabStore, pm: pm)
+            case .web:
+                // Gizli oturum: modeli düşür ki tekrar açılış sıfırdan (temiz) gelsin.
+                if tab.incognito { browser.remove(forKey: wkey) }
+            case .service:
+                break  // servis prosesi/PTY yaşamaya devam eder
+            case .shell, .oneshot:
+                pm.closeTab(tabID: tab.id, killTmux: false)
+            }
+        }
     }
 
     /// tmux'tan adopt edilen sekmelerin PTY'si yoktur — new-session -A ile reattach.

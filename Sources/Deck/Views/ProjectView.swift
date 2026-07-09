@@ -36,18 +36,20 @@ enum ClaudeTabLauncher {
         workspace.openWorkspace(project.id, true)
     }
 
-    /// Sekme UI'dan anında düşer; arka plan temizliği finishClose'da.
+    /// Sekme UI'dan anında düşer; ağır temizlik bir sonraki runloop'a ertelenir.
     static func close(_ tab: WorkspaceTab,
                       projectID: UUID,
                       workspace: WorkspaceStore,
                       tabStore: ClaudeTabStore,
                       pm: ProcessManager) {
         workspace.closeTab(tab.id, in: projectID)
-        guard tab.kind == .claude, tab.number != nil else {
-            pm.closeTab(tabID: tab.id, killTmux: false)
-            return
+        DispatchQueue.main.async {
+            guard tab.kind == .claude, tab.number != nil else {
+                pm.closeTab(tabID: tab.id, killTmux: false)
+                return
+            }
+            finishClose(tab, projectID: projectID, tabStore: tabStore, pm: pm)
         }
-        finishClose(tab, projectID: projectID, tabStore: tabStore, pm: pm)
     }
 
     /// Kapanan Claude sekmesinin sid'ini yakala (tmux → hook fallback),
