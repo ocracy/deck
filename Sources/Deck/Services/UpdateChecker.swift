@@ -35,6 +35,8 @@ final class UpdateChecker: ObservableObject {
     @Published private(set) var installLog: [String] = []
 
     let currentVersion: String
+    /// Terminate öncesi PTY/timer temizliği için (bootstrap'ta bağlanır).
+    weak var processManager: ProcessManager?
 
     private let owner = "ocracy"
     private let repo = "deck"
@@ -158,16 +160,18 @@ final class UpdateChecker: ObservableObject {
             try installAndRelaunch(stagedApp: stagedApp)
             log("Helper script started. Deck is closing…")
             state = .installing
-            // Kullanıcı "Yeniden başlatılıyor…" mesajını görebilsin diye
-            // kısa bir gecikmeyle terminate iste.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            // Terminate'i asacak her şeyi (açık PTY'ler, timer'lar, watcher'lar)
+            // önceden temizle → NSApp.terminate() hızlı ve TEMİZ biter, exit(0)
+            // fallback'i (macOS "unexpectedly quit" dialog'unun nedeni) tetiklenmez.
+            processManager?.prepareForShutdown()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
                 self?.log("Calling NSApp.terminate(nil)")
                 NSApp.terminate(nil)
             }
-            // Emniyet: terminate takılırsa (SIGTERM'e direnen PTY vb.)
-            // 7 sn sonra hard-exit — helper script böylece devam edebilir.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 7.0) { [weak self] in
-                self?.log("Auto-fallback: still here after 7s → exit(0)")
+            // Emniyet: temizliğe rağmen terminate 12 sn'de bitmezse hard-exit.
+            // Temizlik sonrası buraya normalde hiç düşülmez.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12.0) { [weak self] in
+                self?.log("Auto-fallback: still here after 12s → exit(0)")
                 Darwin.exit(0)
             }
         } catch {

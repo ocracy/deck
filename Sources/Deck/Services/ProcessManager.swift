@@ -399,6 +399,24 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
 
     // MARK: - Kapanış
 
+    /// Güncelleme öncesi hızlı ve TAM temizlik: timer/monitor/watcher'ları durdur,
+    /// TÜM PTY süreçlerini (tmux client'lar dahil) hemen öldür. Böylece açık
+    /// SwiftTerm view'ları NSApp.terminate()'i asmaz ve exit(0) fallback'i
+    /// (macOS "unexpectedly quit" dialog'unun nedeni) hiç devreye girmez.
+    /// tmux oturumları server'da yaşamaya devam eder — client SIGKILL yalnız
+    /// bağlantıyı düşürür, oturumu değil.
+    func prepareForShutdown() {
+        titleTimer?.invalidate(); titleTimer = nil
+        statePollTimer?.invalidate(); statePollTimer = nil
+        stateWatcher?.cancel(); stateWatcher = nil
+        if let m = keyMonitor { NSEvent.removeMonitor(m); keyMonitor = nil }
+        if let m = scrollMonitor { NSEvent.removeMonitor(m); scrollMonitor = nil }
+        for view in terminalViews.values where view.process.running {
+            _ = killpg(view.process.shellPid, SIGKILL)
+        }
+        terminalViews.removeAll()
+    }
+
     /// Uygulama çıkarken senkron temizlik. tmux destekli terminaller HARİÇ:
     /// onların PTY'si kapanınca tmux istemcisi düşer, oturum yaşamaya devam eder.
     func terminateAllSync() {

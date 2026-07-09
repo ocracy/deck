@@ -126,6 +126,8 @@ struct DeckApp: App {
         DispatchQueue.global(qos: .utility).async {
             HookInstaller.installIfNeeded()
         }
+        // Güncelleyici terminate öncesi PTY/timer temizliği yapabilsin.
+        UpdateChecker.shared.processManager = processManager
         // Sessiz güncelleme kontrolü (24 saat throttle'lı).
         Task { await UpdateChecker.shared.checkNow(force: false) }
 
