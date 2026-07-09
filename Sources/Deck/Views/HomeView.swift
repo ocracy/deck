@@ -38,7 +38,7 @@ struct HomeView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        Text("Projeler")
+                        Text("Projects")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(.white)
                         LazyVGrid(columns: Self.columns, alignment: .leading, spacing: 20) {
@@ -73,11 +73,11 @@ struct HomeView: View {
                 }
             }
         }
-        .alert("Projeyi Sil", isPresented: $showDeleteAlert, presenting: deleteCandidate) { p in
-            Button("Sil", role: .destructive) { performDelete(p) }
-            Button("Vazgeç", role: .cancel) {}
+        .alert("Delete Project", isPresented: $showDeleteAlert, presenting: deleteCandidate) { p in
+            Button("Delete", role: .destructive) { performDelete(p) }
+            Button("Cancel", role: .cancel) {}
         } message: { p in
-            Text("\"\(p.name)\" projesi Deck'ten kaldırılacak. Diskteki dosyalara dokunulmaz.")
+            Text("The project \"\(p.name)\" will be removed from Deck. Files on disk are left untouched.")
         }
     }
 
@@ -121,17 +121,17 @@ struct HomeView: View {
             Image(systemName: "square.grid.3x3.topleft.filled")
                 .font(.system(size: 52, weight: .light))
                 .foregroundStyle(Color(hex: "#5E8DF7"))
-            Text("Deck'e Hoş Geldin")
+            Text("Welcome to Deck")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(.white)
-            Text("Her projeye kendi masaüstünü ver: servisler, terminaller,\nweb önizlemeleri ve Claude oturumları tek yerde.")
+            Text("Give every project its own desktop: services, terminals,\nweb previews, and Claude sessions in one place.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button {
                 sheet = .new
             } label: {
-                Label("İlk Projeni Oluştur", systemImage: "plus")
+                Label("Create Your First Project", systemImage: "plus")
                     .font(.system(size: 13, weight: .semibold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
@@ -163,7 +163,7 @@ struct HomeView: View {
             if running > 0 {
                 HStack(spacing: 4) {
                     Circle().fill(Color.green).frame(width: 6, height: 6)
-                    Text("\(running) servis")
+                    Text("\(running) service")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.green)
                 }
@@ -186,10 +186,10 @@ struct HomeView: View {
         }
         .onTapGesture { router.open(project.id) }
         .contextMenu {
-            Button("Aç") { router.open(project.id) }
-            Button("Düzenle...") { sheet = .edit(project) }
+            Button("Open") { router.open(project.id) }
+            Button("Edit...") { sheet = .edit(project) }
             Divider()
-            Button("Sil", role: .destructive) {
+            Button("Delete", role: .destructive) {
                 deleteCandidate = project
                 showDeleteAlert = true
             }
@@ -204,7 +204,7 @@ struct HomeView: View {
                 Image(systemName: "plus")
                     .font(.system(size: 26, weight: .light))
                     .foregroundStyle(.secondary)
-                Text("Yeni Proje")
+                Text("New Project")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -300,7 +300,7 @@ private struct ProjectEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(existing == nil ? "Yeni Proje" : "Projeyi Düzenle")
+            Text(existing == nil ? "New Project" : "Edit Project")
                 .font(.system(size: 15, weight: .semibold))
 
             HStack(spacing: 12) {
@@ -310,16 +310,16 @@ private struct ProjectEditorSheet: View {
                     IconView(spec: icon, size: 44)
                 }
                 .buttonStyle(.plain)
-                .help("Görseli değiştir")
+                .help("Change image")
                 .popover(isPresented: $showIconPicker, arrowEdge: .trailing) {
                     IconPicker(spec: $icon)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField("Proje adı", text: $name)
+                    TextField("Project name", text: $name)
                         .textFieldStyle(.roundedBorder)
                     HStack(spacing: 6) {
-                        TextField("Proje dizini", text: $path)
+                        TextField("Project directory", text: $path)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 11, design: .monospaced))
                         Button {
@@ -327,16 +327,16 @@ private struct ProjectEditorSheet: View {
                         } label: {
                             Image(systemName: "folder")
                         }
-                        .help("Dizin seç")
+                        .help("Choose directory")
                     }
                 }
             }
 
             HStack {
                 Spacer()
-                Button("Vazgeç", role: .cancel) { dismiss() }
+                Button("Cancel", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Kaydet") {
+                Button("Save") {
                     onSave(name.trimmingCharacters(in: .whitespaces),
                            path.trimmingCharacters(in: .whitespaces),
                            icon)
@@ -355,7 +355,7 @@ private struct ProjectEditorSheet: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Seç"
+        panel.prompt = "Choose"
         if panel.runModal() == .OK, let url = panel.url {
             path = url.path
             if name.trimmingCharacters(in: .whitespaces).isEmpty {

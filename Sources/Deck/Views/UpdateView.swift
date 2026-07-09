@@ -37,7 +37,7 @@ struct UpdateView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(headerTitle)
                     .font(.headline)
-                Text("Yüklü sürüm: \(checker.currentVersion)")
+                Text("Installed version: \(checker.currentVersion)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -69,13 +69,13 @@ struct UpdateView: View {
 
     private var headerTitle: String {
         switch checker.state {
-        case .available(let r):     return "Deck \(r.version) mevcut"
-        case .downloading:          return "Güncelleme indiriliyor"
-        case .installing:           return "Yeniden başlatılıyor"
-        case .upToDate:             return "Deck güncel"
-        case .checking:             return "Kontrol ediliyor"
-        case .error:                return "Güncelleme hatası"
-        case .idle:                 return "Güncellemeler"
+        case .available(let r):     return "Deck \(r.version) available"
+        case .downloading:          return "Downloading update"
+        case .installing:           return "Restarting"
+        case .upToDate:             return "Deck is up to date"
+        case .checking:             return "Checking"
+        case .error:                return "Update error"
+        case .idle:                 return "Updates"
         }
     }
 
@@ -87,14 +87,14 @@ struct UpdateView: View {
         case .idle, .checking:
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text("GitHub release'leri kontrol ediliyor…")
+                Text("Checking GitHub releases…")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
             }
 
         case .upToDate:
-            Label("Çalıştırdığın sürüm en güncel olanı. Yeni bir release yayınlandığında burada görünecek.",
+            Label("You're running the latest version. New releases will show up here when published.",
                   systemImage: "checkmark.circle.fill")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -105,10 +105,10 @@ struct UpdateView: View {
 
         case .downloading(let progress):
             VStack(alignment: .leading, spacing: 8) {
-                Text("Deck.zip indiriliyor…")
+                Text("Downloading Deck.zip…")
                     .font(.subheadline)
                 ProgressView(value: progress)
-                Text("%\(Int(progress * 100))")
+                Text("\(Int(progress * 100))%")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 installLogView
@@ -118,13 +118,13 @@ struct UpdateView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Yeni sürüm kuruluyor ve uygulama yeniden başlatılıyor…")
+                    Text("Installing the new version and restarting the app…")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
                 installLogView
-                Text("Donduysa aşağıdaki \"Zorla Kapat ve Kur\" butonuna bas — Deck hemen kapanır, helper script kalan işlemi yapar.")
+                Text("If it froze, press the \"Force Quit & Install\" button below — Deck closes immediately and the helper script finishes the rest.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -134,7 +134,7 @@ struct UpdateView: View {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
                     .font(.callout)
                     .foregroundStyle(.orange)
-                Text("İnternet bağlantını kontrol et veya github.com/ocracy/deck adresinden manuel indir.")
+                Text("Check your internet connection or download manually from github.com/ocracy/deck.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -185,7 +185,7 @@ struct UpdateView: View {
             }
 
             if !release.notes.isEmpty {
-                Text("Sürüm notları")
+                Text("Release notes")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 ScrollView {
@@ -211,13 +211,13 @@ struct UpdateView: View {
                 Button {
                     Task { await checker.downloadAndInstall() }
                 } label: {
-                    Label("Şimdi Güncelle", systemImage: "arrow.down.circle.fill")
+                    Label("Update Now", systemImage: "arrow.down.circle.fill")
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
 
             case .downloading:
-                Text("İndirme sürüyor…")
+                Text("Download in progress…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -225,21 +225,21 @@ struct UpdateView: View {
                 Button {
                     checker.forceQuitNow()
                 } label: {
-                    Label("Zorla Kapat ve Kur", systemImage: "bolt.fill")
+                    Label("Force Quit & Install", systemImage: "bolt.fill")
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
                 .tint(.orange)
 
             case .error:
-                Button("Tekrar Dene") {
+                Button("Try Again") {
                     Task { await checker.checkNow(force: true) }
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
 
             case .idle, .checking, .upToDate:
-                Button("Tekrar Kontrol Et") {
+                Button("Check Again") {
                     Task { await checker.checkNow(force: true) }
                 }
                 .disabled({ if case .checking = checker.state { return true }; return false }())

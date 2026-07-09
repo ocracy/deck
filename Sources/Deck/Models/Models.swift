@@ -59,7 +59,7 @@ struct CanvasItem: Codable, Equatable, Identifiable, Hashable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         kind = try c.decodeIfPresent(ItemKind.self, forKey: .kind) ?? .terminal
-        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Adsız"
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Untitled"
         icon = try c.decodeIfPresent(IconSpec.self, forKey: .icon) ?? .defaultTerminal
         x = try c.decodeIfPresent(Double.self, forKey: .x) ?? 40
         y = try c.decodeIfPresent(Double.self, forKey: .y) ?? 40
@@ -88,6 +88,26 @@ extension CanvasItem {
     }
 }
 
+// MARK: - Project settings
+
+struct ProjectSettings: Codable, Equatable, Hashable {
+    /// Notify when a Claude session goes idle (finishes and awaits input).
+    var notifyOnSessionEnd: Bool = true
+    /// Play a sound when a Claude session goes idle.
+    var soundOnSessionEnd: Bool = true
+    /// System sound name (NSSound) used for the alert.
+    var soundName: String = "Glass"
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        notifyOnSessionEnd = try c.decodeIfPresent(Bool.self, forKey: .notifyOnSessionEnd) ?? true
+        soundOnSessionEnd = try c.decodeIfPresent(Bool.self, forKey: .soundOnSessionEnd) ?? true
+        soundName = try c.decodeIfPresent(String.self, forKey: .soundName) ?? "Glass"
+    }
+}
+
 // MARK: - Project
 
 struct Project: Codable, Equatable, Identifiable, Hashable {
@@ -96,11 +116,12 @@ struct Project: Codable, Equatable, Identifiable, Hashable {
     var path: String
     var icon: IconSpec = .defaultProject
     var items: [CanvasItem] = []
+    var settings: ProjectSettings = ProjectSettings()
 
     /// tmux oturum adlarında kullanılan kısa kimlik.
     var shortID: String { String(id.uuidString.replacingOccurrences(of: "-", with: "").prefix(8)).lowercased() }
 
-    enum CodingKeys: String, CodingKey { case id, name, path, icon, items }
+    enum CodingKeys: String, CodingKey { case id, name, path, icon, items, settings }
 
     init(name: String, path: String) {
         self.name = name
@@ -110,10 +131,11 @@ struct Project: Codable, Equatable, Identifiable, Hashable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Proje"
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Project"
         path = try c.decodeIfPresent(String.self, forKey: .path) ?? NSHomeDirectory()
         icon = try c.decodeIfPresent(IconSpec.self, forKey: .icon) ?? .defaultProject
         items = try c.decodeIfPresent([CanvasItem].self, forKey: .items) ?? []
+        settings = try c.decodeIfPresent(ProjectSettings.self, forKey: .settings) ?? ProjectSettings()
     }
 }
 
@@ -150,12 +172,12 @@ enum ServiceStatus: Equatable {
 
     var label: String {
         switch self {
-        case .stopped: return "durduruldu"
-        case .starting: return "başlıyor"
-        case .running: return "çalışıyor"
-        case .externalRunning: return "dışarıda çalışıyor"
-        case .stopping: return "durduruluyor"
-        case .crashed(let code): return "çöktü (\(code))"
+        case .stopped: return "stopped"
+        case .starting: return "starting"
+        case .running: return "running"
+        case .externalRunning: return "external"
+        case .stopping: return "stopping"
+        case .crashed(let code): return "crashed (\(code))"
         }
     }
 }

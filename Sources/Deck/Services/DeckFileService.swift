@@ -221,62 +221,62 @@ enum DeckFileService {
 
     // MARK: - AI prompt
 
-    /// "AI ile Oluştur" — yeni Claude sekmesine verilen görev. `note`:
-    /// kullanıcının opsiyonel yönlendirmesi ("şunlara dikkat et...").
+    /// "Generate with AI" — the task handed to a new Claude tab. `note`:
+    /// the user's optional guidance ("keep an eye on these...").
     static func aiPrompt(for project: Project, note: String? = nil) -> String {
         var prompt = """
-        GÖREVİN: Bu projeyi baştan sona tarayıp geliştirme sırasında GERÇEKTEN kullanılan \
-        en mantıklı servisleri ve komutları bulmak, sonra bunları proje kökünde `deck.json` \
-        olarak yazmak. Deck uygulaması bu dosyayı otomatik içe aktarıp masaüstü ikonlarına çevirir.
+        YOUR TASK: Scan this project end to end, find the most sensible services and commands that \
+        are ACTUALLY used during development, then write them to `deck.json` at the project root. \
+        The Deck app automatically imports this file and turns it into desktop icons.
 
-        NASIL TARARSIN:
-        - Kökü VE alt dizinleri gez: backend/, frontend/, api/, apps/*, packages/* gibi monorepo yapıları dahil.
-        - Kaynaklar: package.json "scripts" (dev/start/watch/build), composer.json, artisan komutları \
-        (serve, horizon, queue:work, reverb:start, schedule:work), Makefile hedefleri, docker-compose \
-        servisleri, Procfile, README kurulum bölümleri.
-        - Portları gerçek konfigürasyondan çıkar (vite.config, .env PORT/APP_URL, next.config...). \
-        Varsayılanlar: Vite 5173, Next/Nuxt 3000, Astro 4321, Laravel serve 8000, Reverb 8080, ngrok panel 4040.
+        HOW TO SCAN:
+        - Walk the root AND subdirectories, including monorepo layouts like backend/, frontend/, api/, apps/*, packages/*.
+        - Sources: package.json "scripts" (dev/start/watch/build), composer.json, artisan commands \
+        (serve, horizon, queue:work, reverb:start, schedule:work), Makefile targets, docker-compose \
+        services, Procfile, README setup sections.
+        - Derive ports from the actual configuration (vite.config, .env PORT/APP_URL, next.config...). \
+        Defaults: Vite 5173, Next/Nuxt 3000, Astro 4321, Laravel serve 8000, Reverb 8080, ngrok panel 4040.
 
-        NE ÜRETİRSİN:
-        - "service" → sürekli çalışanlar: dev sunucuları (npm run dev, php artisan serve), worker'lar \
-        (php artisan horizon, queue:work), websocket (reverb:start), docker compose up. \
-        İlişkili servisleri "folder" ile grupla (ör. "Servisler", "Workers"). \
-        autoStart'ı yalnız her gün ilk iş açılanlara ver.
-        - "command" → tek seferlik işler: php artisan optimize, php artisan migrate, npm run build, \
-        composer install, test komutu.
-        - "web" → gerçekten var olan lokal URL'ler: uygulama, /horizon paneli, /telescope, Mailpit.
-        - "shell" → yalnız kökten farklı, sık girilen bir dizin varsa (ör. backend/).
+        WHAT TO PRODUCE:
+        - "service" → long-running processes: dev servers (npm run dev, php artisan serve), workers \
+        (php artisan horizon, queue:work), websockets (reverb:start), docker compose up. \
+        Group related services with "folder" (e.g. "Services", "Workers"). \
+        Only set autoStart on the ones you open first thing every day.
+        - "command" → one-off tasks: php artisan optimize, php artisan migrate, npm run build, \
+        composer install, the test command.
+        - "web" → local URLs that genuinely exist: the app, the /horizon panel, /telescope, Mailpit.
+        - "shell" → only when there is a frequently used directory different from the root (e.g. backend/).
 
-        cwd KURALI (kritik — yanlış yazarsan komut çalışmaz):
-        - Komut proje KÖKÜNDE çalışıyorsa cwd alanını HİÇ YAZMA (Deck kökü kendisi kullanır).
-        - Alt dizinde çalışıyorsa YALNIZ köke göre göreli yol yaz: "backend", "apps/web" gibi.
-        - ASLA mutlak yol (/Users/...), "~", "./" öneki veya proje kökünün kendisini yazma.
-        - Yazdığın her cwd'nin gerçekten var olduğunu kontrol et (ls ile).
+        cwd RULE (critical — get it wrong and the command won't run):
+        - If the command runs at the project ROOT, DO NOT write the cwd field at all (Deck uses the root itself).
+        - If it runs in a subdirectory, write ONLY a path relative to the root, like "backend", "apps/web".
+        - NEVER write an absolute path (/Users/...), "~", a "./" prefix, or the project root itself.
+        - Verify that every cwd you write actually exists (with ls).
 
-        İKON SEÇİMİ — her öğeye şu setten uygun ikonu ver \
+        ICON SELECTION — give each item a fitting icon from this set \
         (format: "icon": {"symbol": "...", "isEmoji": false, "colorHex": "#..."}):
-        - frontend dev sunucu: "play.display" #5E8DF7 · backend API: "server.rack" #3DDC84
+        - frontend dev server: "play.display" #5E8DF7 · backend API: "server.rack" #3DDC84
         - worker/queue: "gearshape.2.fill" #E8874B · websocket: "dot.radiowaves.left.and.right" #B57BEE
-        - docker/veritabanı: "shippingbox.fill" #38BDF8 · build: "hammer.fill" #E8B84B
-        - optimize/temizlik: "sparkles" #B57BEE · migrate: "cylinder.split.1x2" #8E8E93
-        - test: "checkmark.seal.fill" #3DDC84 · web panel: "globe" #38BDF8 · tünel/ngrok: "network" #E8874B
+        - docker/database: "shippingbox.fill" #38BDF8 · build: "hammer.fill" #E8B84B
+        - optimize/cleanup: "sparkles" #B57BEE · migrate: "cylinder.split.1x2" #8E8E93
+        - test: "checkmark.seal.fill" #3DDC84 · web panel: "globe" #38BDF8 · tunnel/ngrok: "network" #E8874B
 
-        FORMAT (konum bilgisi YOK — yerleşimi Deck yapar):
+        FORMAT (NO position info — Deck handles the layout):
         {"items":[
-          {"kind":"service","name":"Frontend","command":"npm run dev","port":5173,"cwd":"frontend","folder":"Servisler","icon":{"symbol":"play.display","isEmoji":false,"colorHex":"#5E8DF7"}},
+          {"kind":"service","name":"Frontend","command":"npm run dev","port":5173,"cwd":"frontend","folder":"Services","icon":{"symbol":"play.display","isEmoji":false,"colorHex":"#5E8DF7"}},
           {"kind":"command","name":"Optimize","command":"php artisan optimize","icon":{"symbol":"sparkles","isEmoji":false,"colorHex":"#B57BEE"}},
-          {"kind":"web","name":"Uygulama","url":"http://localhost:8000","icon":{"symbol":"globe","isEmoji":false,"colorHex":"#38BDF8"}}
+          {"kind":"web","name":"App","url":"http://localhost:8000","icon":{"symbol":"globe","isEmoji":false,"colorHex":"#38BDF8"}}
         ]}
 
-        KURALLAR:
-        - Az ve öz: dosyalara dayanmayan, çalışacağından emin olmadığın komut EKLEME.
-        - Var olan deck.json içeriğini koru; yalnız gerekeni ekle/güncelle. Deck isme göre eşler — \
-        isim değiştirmek yeni ikon yaratır.
-        - Bitince eklediklerini tek satırlık maddelerle özetle. Sonraki isteklerimde bu dosyayı \
-        güncellemen yeterli; Deck değişikliği otomatik alır.
+        RULES:
+        - Keep it lean: DO NOT add a command that isn't grounded in the files or that you aren't sure will run.
+        - Preserve the existing deck.json content; only add/update what's needed. Deck matches by name — \
+        renaming creates a new icon.
+        - When done, summarize what you added with one-line bullet points. For my later requests, just \
+        updating this file is enough; Deck picks up the change automatically.
         """
         if let note = note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
-            prompt += "\n\nKULLANICI NOTU (bunlara öncelik ver):\n\(note)"
+            prompt += "\n\nUSER NOTE (prioritize these):\n\(note)"
         }
         return prompt
     }

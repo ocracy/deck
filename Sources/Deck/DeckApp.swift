@@ -50,6 +50,7 @@ struct DeckApp: App {
     @StateObject private var tabStore = ClaudeTabStore()
     @StateObject private var browserManager = BrowserManager()
     @StateObject private var router = AppRouter()
+    @StateObject private var skillStore = SkillStore()
 
     var body: some Scene {
         WindowGroup("Deck") {
@@ -58,7 +59,8 @@ struct DeckApp: App {
                      pm: processManager,
                      workspace: workspaceStore,
                      tabStore: tabStore,
-                     browserManager: browserManager)
+                     browserManager: browserManager,
+                     skillStore: skillStore)
                 .frame(minWidth: 1000, minHeight: 640)
                 .preferredColorScheme(.dark)
                 .onAppear { bootstrap() }
@@ -68,35 +70,35 @@ struct DeckApp: App {
         .defaultSize(width: 1280, height: 800)
         .commands {
             CommandGroup(replacing: .newItem) {}
-            CommandMenu("Çalışma Alanı") {
-                Button("Workspace'i Aç/Kapat") {
+            CommandMenu("Workspace") {
+                Button("Toggle Workspace") {
                     NotificationCenter.default.post(name: .deckToggleWorkspace, object: nil)
                 }
                 .keyboardShortcut("b", modifiers: .command)
 
-                Button("Servis Panelini Aç/Kapat") {
+                Button("Toggle Service Panel") {
                     NotificationCenter.default.post(name: .deckToggleServicePanel, object: nil)
                 }
                 .keyboardShortcut("j", modifiers: .command)
 
-                Button("Yeni Claude Sekmesi") {
+                Button("New Claude Tab") {
                     NotificationCenter.default.post(name: .deckNewClaudeTab, object: nil)
                 }
                 .keyboardShortcut("t", modifiers: .command)
 
-                Button("Sekmeyi Kapat") {
+                Button("Close Tab") {
                     NotificationCenter.default.post(name: .deckCloseActiveTab, object: nil)
                 }
                 .keyboardShortcut("w", modifiers: .command)
 
                 Divider()
 
-                Button("Öğe Ara") {
+                Button("Find Item") {
                     NotificationCenter.default.post(name: .deckSearchCanvas, object: nil)
                 }
                 .keyboardShortcut("p", modifiers: .command)
 
-                Button("Seçilenleri Sil") {
+                Button("Delete Selection") {
                     NotificationCenter.default.post(name: .deckDeleteSelection, object: nil)
                 }
                 .keyboardShortcut(.delete, modifiers: .command)
@@ -104,7 +106,7 @@ struct DeckApp: App {
                 Divider()
 
                 ForEach(1..<10) { n in
-                    Button("Sekme \(n)") {
+                    Button("Tab \(n)") {
                         NotificationCenter.default.post(name: .deckSelectTab, object: n)
                     }
                     .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
@@ -149,6 +151,7 @@ struct RootView: View {
     @ObservedObject var workspace: WorkspaceStore
     @ObservedObject var tabStore: ClaudeTabStore
     @ObservedObject var browserManager: BrowserManager
+    @ObservedObject var skillStore: SkillStore
 
     private var openedProjects: [Project] {
         store.projects.filter { router.openedProjectIDs.contains($0.id) }
@@ -168,6 +171,7 @@ struct RootView: View {
                             workspace: workspace,
                             tabStore: tabStore,
                             browserManager: browserManager,
+                            skillStore: skillStore,
                             router: router)
                     .opacity(router.selectedProjectID == project.id ? 1 : 0)
                     .allowsHitTesting(router.selectedProjectID == project.id)

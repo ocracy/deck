@@ -88,11 +88,11 @@ struct WorkspaceView: View {
             Button {
                 addClaudeTab()
             } label: {
-                Label("Yeni Claude Sekmesi", systemImage: "plus")
+                Label("New Claude Tab", systemImage: "plus")
             }
             if !closedTabs.isEmpty {
                 Divider()
-                Section("Kapatılmış oturumu sürdür") {
+                Section("Resume a closed session") {
                     ForEach(closedTabs) { ct in
                         Button {
                             reopenClosed(ct)
@@ -102,7 +102,7 @@ struct WorkspaceView: View {
                     }
                 }
                 Divider()
-                Button("Geçmiş Listesini Temizle", role: .destructive) {
+                Button("Clear History", role: .destructive) {
                     tabStore.clearClosed(for: project.id)
                 }
             }
@@ -128,7 +128,7 @@ struct WorkspaceView: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Yeni Claude sekmesi (⌘T) veya kapatılmış oturumu sürdür")
+        .help("New Claude tab (⌘T) or resume a closed session")
     }
 
     private func closedLabel(_ ct: ClaudeTabStore.ClosedTab) -> String {
@@ -153,12 +153,12 @@ struct WorkspaceView: View {
             Button {
                 addShellTab(cwd: project.path)
             } label: {
-                Label("Proje Dizini", systemImage: "folder")
+                Label("Project Directory", systemImage: "folder")
             }
             Button {
                 pickDirectoryAndOpenShell()
             } label: {
-                Label("Diğer Dizin…", systemImage: "folder.badge.plus")
+                Label("Other Directory…", systemImage: "folder.badge.plus")
             }
         } label: {
             HStack(spacing: 4) {
@@ -181,7 +181,7 @@ struct WorkspaceView: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Yeni terminal sekmesi aç")
+        .help("Open a new terminal tab")
     }
 
     private var webItems: [CanvasItem] {
@@ -209,7 +209,7 @@ struct WorkspaceView: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Web sekmesi aç")
+        .help("Open a web tab")
     }
 
     // MARK: - Pill
@@ -259,7 +259,7 @@ struct WorkspaceView: View {
                     .frame(width: 14, height: 14)
             }
             .buttonStyle(.plain)
-            .help(isRenaming ? "Adı kaydet (Enter)" : "Sekmeyi kapat")
+            .help(isRenaming ? "Save name (Enter)" : "Close tab")
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 4)
@@ -354,13 +354,13 @@ struct WorkspaceView: View {
             Image(systemName: "rectangle.on.rectangle")
                 .font(.system(size: 36, weight: .light))
                 .foregroundStyle(.secondary)
-            Text("Açık sekme yok")
+            Text("No open tabs")
                 .font(.title3)
                 .foregroundStyle(.secondary)
             Button {
                 addClaudeTab()
             } label: {
-                Label("Yeni Claude Sekmesi", systemImage: "plus")
+                Label("New Claude Tab", systemImage: "plus")
             }
             .buttonStyle(.borderedProminent)
         }
@@ -404,8 +404,8 @@ struct WorkspaceView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Seç"
-        panel.message = "Terminalin açılacağı dizini seç"
+        panel.prompt = "Choose"
+        panel.message = "Choose the directory to open the terminal in"
         panel.directoryURL = URL(fileURLWithPath: project.path)
         if panel.runModal() == .OK, let url = panel.url {
             addShellTab(cwd: url.path)

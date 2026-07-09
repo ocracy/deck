@@ -13,11 +13,11 @@ struct PanelSwitcher: View {
     var body: some View {
         HStack(spacing: 2) {
             segment("Workspace", "rectangle.on.rectangle", active: isWorkspace,
-                    tip: "Workspace (⌘B) — açıkken tekrar bas: masaüstü") {
+                    tip: "Workspace (⌘B) — press again when open: desktop") {
                 workspace.openWorkspace(projectID, !isWorkspace)
             }
-            segment("Servisler", "bolt.horizontal.fill", active: isService,
-                    tip: "Servisler (⌘J) — açıkken tekrar bas: masaüstü") {
+            segment("Services", "bolt.horizontal.fill", active: isService,
+                    tip: "Services (⌘J) — press again when open: desktop") {
                 workspace.openServicePanel(projectID, !isService)
             }
         }

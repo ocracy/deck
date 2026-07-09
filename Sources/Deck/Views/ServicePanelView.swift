@@ -52,7 +52,7 @@ struct ServicePanelView: View {
                     Image(systemName: "square.grid.2x2.fill")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(overview ? Color.accentColor : Color.green)
-                    Text("Tüm Servisler")
+                    Text("All Services")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(overview ? Color.accentColor : .secondary)
                 }
@@ -64,7 +64,7 @@ struct ServicePanelView: View {
                 )
             }
             .buttonStyle(.plain)
-            .help("Tüm servislere genel bakış")
+            .help("Overview of all services")
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -85,7 +85,7 @@ struct ServicePanelView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "stop.fill")
                             .font(.system(size: 9, weight: .semibold))
-                        Text("Tümünü Durdur")
+                        Text("Stop All")
                             .font(.system(size: 11, weight: .medium))
                     }
                     .padding(.horizontal, 9)
@@ -128,7 +128,7 @@ struct ServicePanelView: View {
                     .frame(width: 15, height: 15)
             }
             .buttonStyle(.plain)
-            .help("Yeniden başlat")
+            .help("Restart")
 
             if status.isRunning {
                 Button {
@@ -140,7 +140,7 @@ struct ServicePanelView: View {
                         .frame(width: 15, height: 15)
                 }
                 .buttonStyle(.plain)
-                .help(status == .externalRunning ? "Durdur (dış süreç)" : "Durdur")
+                .help(status == .externalRunning ? "Stop (external process)" : "Stop")
             } else {
                 Button {
                     pm.startService(item, project: project)
@@ -151,7 +151,7 @@ struct ServicePanelView: View {
                         .frame(width: 15, height: 15)
                 }
                 .buttonStyle(.plain)
-                .help("Başlat")
+                .help("Start")
             }
         }
         .padding(.horizontal, 10)
@@ -204,7 +204,7 @@ struct ServicePanelView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text(services.isEmpty ? "Tanımlı servis yok" : "Servisler")
+                    Text(services.isEmpty ? "No services defined" : "Services")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -214,7 +214,7 @@ struct ServicePanelView: View {
                                 pm.startService(s, project: project)
                             }
                         } label: {
-                            Label("Tümünü Başlat", systemImage: "play.fill")
+                            Label("Start All", systemImage: "play.fill")
                                 .font(.system(size: 11, weight: .medium))
                         }
                         .buttonStyle(.plain)
@@ -227,7 +227,7 @@ struct ServicePanelView: View {
                     }
                 }
                 if services.isEmpty {
-                    Text("Masaüstünde sağ tık → “Yeni Servis” ile ekleyebilir\nveya “AI ile Oluştur” diyebilirsin.")
+                    Text("Right-click on the desktop → “New Service” to add one,\nor choose “Create with AI”.")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .padding(.top, 8)

@@ -30,8 +30,15 @@ enum NotificationService {
         NSApp.dockTile.badgeLabel = count > 0 ? String(count) : nil
     }
 
+    /// Held strongly: a temporary NSSound is deallocated before it finishes
+    /// playing, so the sound never comes out — keep a reference alive.
+    private static var activeSound: NSSound?
+
     static func playSound(_ name: String) {
-        NSSound(named: name)?.play()
+        let sound = NSSound(named: NSSound.Name(name)) ?? NSSound(named: NSSound.Name("Glass"))
+        activeSound = sound
+        sound?.stop()
+        sound?.play()
     }
 
     /// AppleScript string literal'i olarak alıntıla.

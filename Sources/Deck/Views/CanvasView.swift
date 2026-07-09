@@ -52,6 +52,7 @@ struct CanvasView: View {
     @ObservedObject var pm: ProcessManager
     @ObservedObject var workspace: WorkspaceStore
     @ObservedObject var tabStore: ClaudeTabStore
+    @ObservedObject var skillStore: SkillStore
 
     private struct EditorContext: Identifiable {
         let id = UUID()
@@ -169,7 +170,7 @@ struct CanvasView: View {
                 AIPromptSheet { note in
                     ClaudeTabLauncher.open(project: liveProject, workspace: workspace,
                                            tabStore: tabStore, pm: pm,
-                                           customName: "AI Kurulum",
+                                           customName: "AI Setup",
                                            initialCommand: DeckFileService.aiPrompt(for: liveProject, note: note),
                                            autoRun: true)
                 }
@@ -266,19 +267,19 @@ struct CanvasView: View {
 
     @ViewBuilder
     private func emptyAreaMenu(size: CGSize) -> some View {
-        Button("AI ile Oluştur ✨") { createWithAI() }
+        Button("Generate with AI ✨") { createWithAI() }
         Divider()
-        Button("Yeni Claude") { newItem(.claude, size: size) }
-        Button("Yeni Servis") { newItem(.service, size: size) }
-        Button("Yeni Komut") { newItem(.oneshot, size: size) }
-        Button("Yeni Terminal") { newItem(.shell, size: size) }
-        Button("Yeni Web") { newItem(.web, size: size) }
+        Button("New Claude") { newItem(.claude, size: size) }
+        Button("New Service") { newItem(.service, size: size) }
+        Button("New Command") { newItem(.oneshot, size: size) }
+        Button("New Terminal") { newItem(.shell, size: size) }
+        Button("New Web") { newItem(.web, size: size) }
         if currentFolderID == nil {
-            Button("Yeni Klasör") { createFolder(size: size) }
+            Button("New Folder") { createFolder(size: size) }
         }
         if !CanvasClipboard.items.isEmpty {
             Divider()
-            Button("Yapıştır (\(CanvasClipboard.items.count))") { paste(size: size) }
+            Button("Paste (\(CanvasClipboard.items.count))") { paste(size: size) }
         }
     }
 
@@ -287,7 +288,7 @@ struct CanvasView: View {
     }
 
     private func createFolder(size: CGSize) {
-        var folder = CanvasItem(kind: .folder, name: "Yeni Klasör", icon: .defaultFolder)
+        var folder = CanvasItem(kind: .folder, name: "New Folder", icon: .defaultFolder)
         let p = freeSpot(in: size)
         folder.x = p.x
         folder.y = p.y
@@ -334,7 +335,7 @@ struct CanvasView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 10, weight: .semibold))
-                    Text("Geri")
+                    Text("Back")
                         .font(.system(size: 12, weight: .medium))
                 }
                 .padding(.horizontal, 10)
@@ -375,8 +376,8 @@ struct CanvasView: View {
         case .web: return item.url
         case .folder: return nil
         case .claude:
-            guard let c = item.command, !c.isEmpty else { return "claude (boş)" }
-            return item.autoStart ? "claude → \(c)" : "claude, hazır: \(c)"
+            guard let c = item.command, !c.isEmpty else { return "claude (empty)" }
+            return item.autoStart ? "claude → \(c)" : "claude, ready: \(c)"
         case .terminal:
             guard let c = item.command, !c.isEmpty else { return nil }
             return c
@@ -416,7 +417,7 @@ struct CanvasView: View {
                     .truncationMode(.middle)
             }
             Spacer(minLength: 0)
-            Text("Space: önizleme")
+            Text("Space: preview")
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary.opacity(0.7))
         }
@@ -559,14 +560,14 @@ struct CanvasView: View {
     private func serviceControls(_ item: CanvasItem, status: ServiceStatus) -> some View {
         HStack(spacing: 6) {
             miniButton(status.isRunning ? "stop.fill" : "play.fill",
-                       help: status.isRunning ? (status == .externalRunning ? "Durdur (dış süreç)" : "Durdur") : "Başlat") {
+                       help: status.isRunning ? (status == .externalRunning ? "Stop (external)" : "Stop") : "Start") {
                 pm.toggleService(item, project: liveProject)
             }
-            miniButton("arrow.clockwise", help: "Yeniden başlat") {
+            miniButton("arrow.clockwise", help: "Restart") {
                 pm.restartService(item, project: liveProject)
             }
             if let port = item.port {
-                miniButton("bolt.slash.fill", help: "Portu boşalt (\(port))") {
+                miniButton("bolt.slash.fill", help: "Kill Port (\(port))") {
                     pm.killPort(port, feedbackKey: item.id.uuidString)
                 }
             }
@@ -787,20 +788,20 @@ struct CanvasView: View {
         let oneshots = items.filter { $0.kind == .terminal && $0.mode == .oneshot }
 
         if !services.isEmpty {
-            Button("Seçilenleri Başlat (\(services.count) servis)") {
+            Button("Start Selected (\(services.count) services)") {
                 for s in services where !pm.status(of: s.id).isRunning {
                     pm.startService(s, project: liveProject)
                 }
             }
-            Button("Seçilenleri Durdur") {
+            Button("Stop Selected") {
                 for s in services where pm.status(of: s.id).isRunning { pm.stopService(s) }
             }
-            Button("Seçilenleri Yeniden Başlat") {
+            Button("Restart Selected") {
                 for s in services { pm.restartService(s, project: liveProject) }
             }
         }
         if !oneshots.isEmpty {
-            Button("Arka Planda Çalıştır (\(oneshots.count) komut)") {
+            Button("Run in Background (\(oneshots.count) commands)") {
                 for o in oneshots { pm.runBackground(o, project: liveProject) }
             }
         }
@@ -808,72 +809,72 @@ struct CanvasView: View {
             moveToFolderMenu(ids: selectedIDs)
         }
         Divider()
-        Button("Kopyala") { copySelection() }
-        Button("Sil", role: .destructive) { deleteItems(selectedIDs) }
+        Button("Copy") { copySelection() }
+        Button("Delete", role: .destructive) { deleteItems(selectedIDs) }
     }
 
     @ViewBuilder
     private func singleMenu(for item: CanvasItem, status: ServiceStatus) -> some View {
         switch item.kind {
         case .claude:
-            Button("Yeni Claude Sekmesi") { launchClaude(item) }
-            Button("Geçmişi Sürdür...") { showResumeSheet = true }
-            Button("AI ile Oluştur ✨") { createWithAI() }
+            Button("New Claude Tab") { launchClaude(item) }
+            Button("Resume Session…") { showResumeSheet = true }
+            skillsMenu
             closedTabsMenu
             Divider()
             if item.parentID == nil { moveToFolderMenu(ids: [item.id]) }
-            Button("Düzenle...") { editor = EditorContext(item: item, spawn: nil) }
-            Button("Kopyala") { selectedIDs = [item.id]; copySelection() }
-            Button("Sil", role: .destructive) { deleteItems([item.id]) }
+            Button("Edit…") { editor = EditorContext(item: item, spawn: nil) }
+            Button("Copy") { selectedIDs = [item.id]; copySelection() }
+            Button("Delete", role: .destructive) { deleteItems([item.id]) }
         case .web:
-            Button("Aç") { openWebTab(item) }
+            Button("Open") { openWebTab(item) }
             Divider()
             commonItemButtons(item)
         case .folder:
-            Button("Aç") { currentFolderID = item.id; selectedIDs = [] }
+            Button("Open") { currentFolderID = item.id; selectedIDs = [] }
             let children = folderChildren(item)
             if !children.isEmpty {
                 Divider()
-                Button("Tümünü Başlat (\(children.count))") {
+                Button("Start All (\(children.count))") {
                     for c in children where !pm.status(of: c.id).isRunning {
                         pm.startService(c, project: liveProject)
                     }
                 }
-                Button("Tümünü Durdur") {
+                Button("Stop All") {
                     for c in children where pm.status(of: c.id).isRunning { pm.stopService(c) }
                 }
-                Button("Tümünü Yeniden Başlat") {
+                Button("Restart All") {
                     for c in children { pm.restartService(c, project: liveProject) }
                 }
             }
             Divider()
-            Button("Yeniden Adlandır") { beginRename(item) }
-            Button("Kopyala") { selectedIDs = [item.id]; copySelection() }
-            Button("Sil", role: .destructive) { deleteItems([item.id]) }
+            Button("Rename") { beginRename(item) }
+            Button("Copy") { selectedIDs = [item.id]; copySelection() }
+            Button("Delete", role: .destructive) { deleteItems([item.id]) }
         case .terminal:
             switch item.mode ?? .shell {
             case .service:
-                Button("Aç") { openServiceTab(item, startIfStopped: false) }
+                Button("Open") { openServiceTab(item, startIfStopped: false) }
                 if status.isRunning {
-                    Button(status == .externalRunning ? "Durdur (dış süreç)" : "Durdur") { pm.stopService(item) }
+                    Button(status == .externalRunning ? "Stop (external)" : "Stop") { pm.stopService(item) }
                 } else {
-                    Button("Başlat") { pm.startService(item, project: liveProject) }
+                    Button("Start") { pm.startService(item, project: liveProject) }
                 }
-                Button("Yeniden Başlat") { pm.restartService(item, project: liveProject) }
+                Button("Restart") { pm.restartService(item, project: liveProject) }
                 if let port = item.port {
-                    Button("Portu Boşalt (\(port))") {
+                    Button("Kill Port (\(port))") {
                         pm.killPort(port, feedbackKey: item.id.uuidString)
                     }
                 }
                 Divider()
                 commonItemButtons(item)
             case .oneshot:
-                Button("Çalıştır") { runOneshot(item) }
-                Button("Arka Planda Çalıştır") { pm.runBackground(item, project: liveProject) }
+                Button("Run") { runOneshot(item) }
+                Button("Run in Background") { pm.runBackground(item, project: liveProject) }
                 Divider()
                 commonItemButtons(item)
             case .shell:
-                Button("Aç") { openShellTab(item) }
+                Button("Open") { openShellTab(item) }
                 Divider()
                 commonItemButtons(item)
             }
@@ -884,7 +885,7 @@ struct CanvasView: View {
     private func moveToFolderMenu(ids: Set<UUID>) -> some View {
         let folders = liveProject.items.filter { $0.kind == .folder }
         if !folders.isEmpty {
-            Menu("Klasöre Taşı") {
+            Menu("Move to Folder") {
                 ForEach(folders) { f in
                     Button(f.name) { moveToFolder(ids: ids, folderID: f.id) }
                 }
@@ -897,12 +898,32 @@ struct CanvasView: View {
         if item.parentID == nil {
             moveToFolderMenu(ids: [item.id])
         } else {
-            Button("Klasörden Çıkar") { moveToFolder(ids: [item.id], folderID: nil) }
+            Button("Remove from Folder") { moveToFolder(ids: [item.id], folderID: nil) }
         }
-        Button("Yeniden Adlandır") { beginRename(item) }
-        Button("Düzenle...") { editor = EditorContext(item: item, spawn: nil) }
-        Button("Kopyala") { selectedIDs = [item.id]; copySelection() }
-        Button("Sil", role: .destructive) { deleteItems([item.id]) }
+        Button("Rename") { beginRename(item) }
+        Button("Edit...") { editor = EditorContext(item: item, spawn: nil) }
+        Button("Copy") { selectedIDs = [item.id]; copySelection() }
+        Button("Delete", role: .destructive) { deleteItems([item.id]) }
+    }
+
+    /// Skills discovered under `<project>/.claude/skills`. Selecting one opens a
+    /// new Claude tab and types `/<skill>` into the prompt (no auto-run).
+    @ViewBuilder
+    private var skillsMenu: some View {
+        let skills = skillStore.skills(for: project.id)
+        if !skills.isEmpty {
+            Menu("Skills") {
+                ForEach(skills, id: \.self) { skill in
+                    Button("/\(skill)") { launchSkill(skill) }
+                }
+            }
+        }
+    }
+
+    private func launchSkill(_ skill: String) {
+        ClaudeTabLauncher.open(project: liveProject, workspace: workspace,
+                               tabStore: tabStore, pm: pm,
+                               initialCommand: "/\(skill)", autoRun: false)
     }
 
     @ViewBuilder
@@ -910,12 +931,12 @@ struct CanvasView: View {
         let closedTabs = tabStore.closed[project.id] ?? []
         if !closedTabs.isEmpty {
             Divider()
-            Menu("Kapatılmış Sekmeler") {
+            Menu("Closed Tabs") {
                 ForEach(closedTabs) { ct in
                     Button(closedLabel(ct)) { reopenClosed(ct) }
                 }
                 Divider()
-                Button("Listeyi Temizle") { tabStore.clearClosed(for: project.id) }
+                Button("Clear List") { tabStore.clearClosed(for: project.id) }
             }
         }
     }
@@ -966,7 +987,7 @@ struct CanvasView: View {
             idMap[src.id] = newID
             copy.id = newID
             if existingNames.contains(copy.name.lowercased()) {
-                copy.name += " kopyası"
+                copy.name += " copy"
             }
             if let oldParent = src.parentID, let mapped = idMap[oldParent] {
                 copy.parentID = mapped   // kopyalanan klasörün içinde kal
@@ -1146,13 +1167,13 @@ private struct QuickLookOverlay: View {
 
     private var kindLabel: String {
         switch item.kind {
-        case .folder: return "Klasör"
+        case .folder: return "Folder"
         case .web: return "Web"
         case .claude: return "Claude"
         case .terminal:
             switch item.mode ?? .shell {
-            case .service: return "Servis"
-            case .oneshot: return "Komut"
+            case .service: return "Service"
+            case .oneshot: return "Command"
             case .shell: return "Terminal"
             }
         }
@@ -1207,28 +1228,28 @@ private struct QuickLookOverlay: View {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 12) {
-                    infoRow("Çalışma dizini", systemImage: "folder", value: resolvedCwd)
+                    infoRow("Working directory", systemImage: "folder", value: resolvedCwd)
                     if let port = item.port {
                         infoRow("Port", systemImage: "network", value: ":\(port)",
                                 tint: Color(hex: "#38BDF8"))
                     }
                     if item.kind == .web, let url = item.url {
-                        infoRow("Adres", systemImage: "link", value: url, tint: Color(hex: "#38BDF8"))
+                        infoRow("Address", systemImage: "link", value: url, tint: Color(hex: "#38BDF8"))
                     }
                     if item.kind == .terminal, let cmd = item.command, !cmd.isEmpty {
-                        infoRow("Komut", systemImage: "chevron.right", value: cmd,
+                        infoRow("Command", systemImage: "chevron.right", value: cmd,
                                 tint: Color(hex: "#8FE388"), mono: true)
                     }
                     if item.kind == .claude {
                         if let cmd = item.command, !cmd.isEmpty {
-                            infoRow("Başlangıç komutu", systemImage: "chevron.right", value: cmd,
+                            infoRow("Startup command", systemImage: "chevron.right", value: cmd,
                                     tint: Color(hex: "#8FE388"), mono: true)
-                            infoRow("Otomatik çalıştır", systemImage: "play.circle",
-                                    value: item.autoStart ? "Evet — açılınca hemen gönderilir"
-                                                          : "Hayır — girdi kutusuna yazılır")
+                            infoRow("Auto-run", systemImage: "play.circle",
+                                    value: item.autoStart ? "Yes — sent immediately on open"
+                                                          : "No — typed into the input box")
                         } else {
-                            infoRow("Başlangıç komutu", systemImage: "chevron.right",
-                                    value: "yok — boş açılır")
+                            infoRow("Startup command", systemImage: "chevron.right",
+                                    value: "none — opens blank")
                         }
                     }
                     if item.kind == .terminal, item.mode == .service {
@@ -1236,8 +1257,8 @@ private struct QuickLookOverlay: View {
                             Image(systemName: status.isRunning ? "checkmark.circle.fill" : "pause.circle.fill")
                                 .foregroundStyle(status.isRunning ? .green : .secondary)
                             Text(status.isRunning
-                                 ? (item.port != nil ? "Çalışıyor — :\(item.port!) dinleniyor" : "Çalışıyor")
-                                 : "Şu an çalışmıyor")
+                                 ? (item.port != nil ? "Running — listening on :\(item.port!)" : "Running")
+                                 : "Not running")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(status.isRunning ? .green : .secondary)
                         }
@@ -1245,7 +1266,7 @@ private struct QuickLookOverlay: View {
                 }
                 .padding(16)
 
-                Text("Kapatmak için Space veya Esc")
+                Text("Press Space or Esc to close")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary.opacity(0.7))
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -1287,19 +1308,19 @@ private struct AIPromptSheet: View {
             HStack(spacing: 8) {
                 ClaudeIconView(size: 30)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("AI ile Oluştur")
+                    Text("Generate with AI")
                         .font(.system(size: 14, weight: .semibold))
-                    Text("Claude projeyi tarar, servis ve komutları deck.json'a yazar; Deck ikonlara çevirir.")
+                    Text("Claude scans the project, writes services and commands to deck.json; Deck turns them into icons.")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
             }
 
             VStack(alignment: .leading, spacing: 5) {
-                Text("Claude'a not (opsiyonel)")
+                Text("Note to Claude (optional)")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                TextField("ör. sadece backend servislerine odaklan, testleri ekleme…",
+                TextField("e.g. focus only on backend services, skip tests…",
                           text: $note, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(2...4)
@@ -1308,9 +1329,9 @@ private struct AIPromptSheet: View {
 
             HStack {
                 Spacer()
-                Button("Vazgeç") { dismiss() }
+                Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Başlat") {
+                Button("Start") {
                     dismiss()
                     onStart(note.isEmpty ? nil : note)
                 }
@@ -1346,7 +1367,7 @@ private struct SearchPalette: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Öğe ara…", text: $query)
+                TextField("Search items…", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 15))
                     .focused($focused)
@@ -1399,13 +1420,13 @@ private struct SearchPalette: View {
 
     private func kindLabel(_ item: CanvasItem) -> String {
         switch item.kind {
-        case .folder: return "klasör"
+        case .folder: return "folder"
         case .web: return "web"
         case .claude: return "claude"
         case .terminal:
             switch item.mode ?? .shell {
-            case .service: return "servis"
-            case .oneshot: return "komut"
+            case .service: return "service"
+            case .oneshot: return "command"
             case .shell: return "terminal"
             }
         }

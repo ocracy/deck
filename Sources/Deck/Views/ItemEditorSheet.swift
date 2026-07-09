@@ -10,8 +10,8 @@ enum ItemEditorKind: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .claude: return "Claude"
-        case .service: return "Servis"
-        case .oneshot: return "Komut"
+        case .service: return "Service"
+        case .oneshot: return "Command"
         case .shell: return "Terminal"
         case .web: return "Web"
         }
@@ -103,7 +103,7 @@ struct ItemEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(item == nil ? "Yeni Öğe" : "Öğeyi Düzenle")
+            Text(item == nil ? "New Item" : "Edit Item")
                 .font(.system(size: 15, weight: .semibold))
 
             Picker("", selection: $kind) {
@@ -115,20 +115,20 @@ struct ItemEditorSheet: View {
             .labelsHidden()
 
             VStack(alignment: .leading, spacing: 10) {
-                row("İsim") {
+                row("Name") {
                     TextField(placeholderName, text: $name)
                         .textFieldStyle(.roundedBorder)
                 }
 
                 // Claude'un görseli markaya özel (sabit); diğerlerinde seçilebilir.
                 if kind != .claude {
-                    row("Görsel") {
+                    row("Icon") {
                         Button {
                             showIconPicker.toggle()
                         } label: {
                             HStack(spacing: 8) {
                                 IconView(spec: icon, size: 34)
-                                Text("Değiştir")
+                                Text("Change")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
@@ -142,21 +142,21 @@ struct ItemEditorSheet: View {
 
                 switch kind {
                 case .claude:
-                    row("Başlangıç komutu") {
-                        TextField("opsiyonel — boşsa Claude boş açılır", text: $command)
+                    row("Startup command") {
+                        TextField("optional — empty opens Claude blank", text: $command)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                     }
                     cwdRow
                     if hasInitialCommand {
                         row("") {
-                            Toggle("Açılınca komutu otomatik çalıştır", isOn: $autoStart)
+                            Toggle("Auto-run command on open", isOn: $autoStart)
                                 .font(.system(size: 12))
                         }
                         row("") {
                             Text(autoStart
-                                 ? "Claude açılır ve komut hemen gönderilir."
-                                 : "Komut girdi kutusuna yazılır; göndermek için Enter'a bas.")
+                                 ? "Claude opens and the command is sent immediately."
+                                 : "The command is typed into the input box; press Enter to send.")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.secondary)
                         }
@@ -164,16 +164,16 @@ struct ItemEditorSheet: View {
                 case .service:
                     commandRow
                     row("Port") {
-                        TextField("opsiyonel", text: $portText)
+                        TextField("optional", text: $portText)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 90)
-                        Text("hazır olma kontrolü + KILL PORT için")
+                        Text("for readiness check + KILL PORT")
                             .font(.system(size: 10))
                             .foregroundStyle(.secondary)
                     }
                     cwdRow
                     row("") {
-                        Toggle("Uygulama açılınca otomatik başlat", isOn: $autoStart)
+                        Toggle("Auto-start when app opens", isOn: $autoStart)
                             .font(.system(size: 12))
                     }
                 case .oneshot:
@@ -192,9 +192,9 @@ struct ItemEditorSheet: View {
 
             HStack {
                 Spacer()
-                Button("Vazgeç", role: .cancel) { dismiss() }
+                Button("Cancel", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Kaydet") { save() }
+                Button("Save") { save() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canSave)
             }
@@ -213,16 +213,16 @@ struct ItemEditorSheet: View {
 
     private var placeholderName: String {
         switch kind {
-        case .claude: return "örn. Backend Claude"
-        case .service: return "örn. Dev Server"
-        case .oneshot: return "örn. Optimize"
-        case .shell: return "örn. Terminal"
-        case .web: return "örn. Önizleme"
+        case .claude: return "e.g. Backend Claude"
+        case .service: return "e.g. Dev Server"
+        case .oneshot: return "e.g. Optimize"
+        case .shell: return "e.g. Terminal"
+        case .web: return "e.g. Preview"
         }
     }
 
     private var commandRow: some View {
-        row("Komut") {
+        row("Command") {
             TextField(kind == .service ? "npm run dev" : "php artisan optimize", text: $command)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12, design: .monospaced))
@@ -230,8 +230,8 @@ struct ItemEditorSheet: View {
     }
 
     private var cwdRow: some View {
-        row("Çalışma dizini") {
-            TextField("proje kökü (boş) veya köke göreli: backend", text: $cwd)
+        row("Working directory") {
+            TextField("project root (empty) or relative to root: backend", text: $cwd)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 11, design: .monospaced))
             Button {
@@ -239,7 +239,7 @@ struct ItemEditorSheet: View {
             } label: {
                 Image(systemName: "folder")
             }
-            .help("Dizin seç")
+            .help("Choose directory")
         }
     }
 
@@ -261,7 +261,7 @@ struct ItemEditorSheet: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Seç"
+        panel.prompt = "Choose"
         let start = cwd.isEmpty ? root : (cwd.hasPrefix("/") ? cwd : root + "/" + cwd)
         panel.directoryURL = URL(fileURLWithPath: start)
         if panel.runModal() == .OK, let url = panel.url {

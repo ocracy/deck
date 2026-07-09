@@ -83,9 +83,11 @@ struct ProjectView: View {
     @ObservedObject var workspace: WorkspaceStore
     @ObservedObject var tabStore: ClaudeTabStore
     @ObservedObject var browserManager: BrowserManager
+    @ObservedObject var skillStore: SkillStore
     @ObservedObject var router: AppRouter
 
     @State private var didAppear = false
+    @State private var showSettings = false
     @State private var deckJSONMtime: Date?
     private let deckJSONTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
@@ -117,7 +119,8 @@ struct ProjectView: View {
                            store: store,
                            pm: pm,
                            workspace: workspace,
-                           tabStore: tabStore)
+                           tabStore: tabStore,
+                           skillStore: skillStore)
                 // Servis paneli: yalnız servis terminalleri, stop/restart kontrolleriyle.
                 ServicePanelView(project: project, workspace: workspace, pm: pm)
                     .opacity(isServicePanelOpen ? 1 : 0)
@@ -138,7 +141,13 @@ struct ProjectView: View {
             didAppear = true
             pm.adoptClaudeTabs(for: project, workspace: workspace, tabStore: tabStore)
             pm.scanExternalServices(projects: [project])
+            skillStore.scan(project: project)
             syncDeckJSON(force: true)
+        }
+        .sheet(isPresented: $showSettings) {
+            ProjectSettingsSheet(project: project) { updated in
+                store.updateProject(updated)
+            }
         }
         // deck.json köprüsü: Claude (veya kullanıcı) dosyayı değiştirince
         // öğeler canvas'a otomatik akar.
@@ -212,7 +221,7 @@ struct ProjectView: View {
                     .background(Circle().fill(Color.white.opacity(0.07)))
             }
             .buttonStyle(.plain)
-            .help("Projelere dön")
+            .help("Back to projects")
 
             // Proje ikonu + adı: tıklayınca masaüstüne (ikonlara) dön.
             Button {
@@ -233,14 +242,14 @@ struct ProjectView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Masaüstüne dön")
+            .help("Back to desktop")
 
             Spacer()
 
             if runningServiceCount > 0 {
                 HStack(spacing: 5) {
                     Circle().fill(Color.green).frame(width: 7, height: 7)
-                    Text("\(runningServiceCount) çalışıyor")
+                    Text("\(runningServiceCount) running")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.green)
                 }
@@ -250,6 +259,18 @@ struct ProjectView: View {
             // Workspace ↔ Servisler geçişi burada — sekme hizasında değil,
             // proje barında (⌘B / ⌘J kısayollarıyla).
             PanelSwitcher(projectID: project.id, workspace: workspace)
+
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(Color.white.opacity(0.07)))
+            }
+            .buttonStyle(.plain)
+            .help("Project settings")
         }
         .padding(.horizontal, 12)
         .frame(height: 44)

@@ -84,7 +84,7 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
         removeStateFile(key)
 
         let cwd = item.resolvedCwd(projectPath: project.path)
-        feed(key: key, ansi: "\r\n\u{1B}[2m— başlatılıyor: \(command) (dizin: \(cwd)) —\u{1B}[0m\r\n")
+        feed(key: key, ansi: "\r\n\u{1B}[2m— starting: \(command) (dir: \(cwd)) —\u{1B}[0m\r\n")
 
         let cols = max(80, view.getTerminal().cols)
         let rows = max(24, view.getTerminal().rows)
@@ -158,7 +158,7 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
             let output = Self.killPortSync(port)
             guard let feedbackKey else { return }
             await MainActor.run {
-                self?.feed(key: feedbackKey, ansi: "\r\n\u{1B}[33m[port temizle :\(port)]\u{1B}[0m \(output)")
+                self?.feed(key: feedbackKey, ansi: "\r\n\u{1B}[33m[kill port :\(port)]\u{1B}[0m \(output)")
             }
         }
     }
@@ -230,7 +230,7 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
         let view = terminalView(forKey: key)
         if view.process.running { return }
         let expanded = (cwd as NSString).expandingTildeInPath
-        feed(key: key, ansi: "\r\n\u{1B}[2m— çalıştırılıyor: \(command) (dizin: \(expanded)) —\u{1B}[0m\r\n")
+        feed(key: key, ansi: "\r\n\u{1B}[2m— running: \(command) (dir: \(expanded)) —\u{1B}[0m\r\n")
         spawnPlain(key: key, command: command, cwd: cwd)
     }
 
@@ -452,12 +452,12 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
             if let port {
                 if Self.isPortBound(port) {
                     self.statuses[itemID] = .running
-                    self.feed(key: key, ansi: "\u{1B}[32m[hazır]\u{1B}[0m :\(port) dinleniyor\r\n")
+                    self.feed(key: key, ansi: "\u{1B}[32m[ready]\u{1B}[0m :\(port) listening\r\n")
                     return
                 }
                 if Date().timeIntervalSince(started) > portTimeout {
                     self.statuses[itemID] = .running
-                    self.feed(key: key, ansi: "\u{1B}[33m[hazır]\u{1B}[0m :\(port) beklenirken zaman aşımı — çalışıyor sayıldı\r\n")
+                    self.feed(key: key, ansi: "\u{1B}[33m[ready]\u{1B}[0m :\(port) timeout waiting — assumed running\r\n")
                     return
                 }
             } else if Date().timeIntervalSince(started) >= noPortGrace {
@@ -494,7 +494,7 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
 
     private nonisolated static func killPortSync(_ port: Int) -> String {
         let r = Shell.run("/bin/sh", ["-c",
-            "PIDS=$(lsof -ti tcp:\(port) 2>/dev/null); if [ -n \"$PIDS\" ]; then echo \"öldürülüyor: $PIDS\"; echo $PIDS | xargs kill -9; else echo \":\(port) üzerinde süreç yok\"; fi"])
+            "PIDS=$(lsof -ti tcp:\(port) 2>/dev/null); if [ -n \"$PIDS\" ]; then echo \"killing: $PIDS\"; echo $PIDS | xargs kill -9; else echo \"no process on :\(port)\"; fi"])
         return r.output
     }
 
@@ -632,19 +632,32 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
 
         guard next != attention else { return }
 
-        // Bildirim yalnız waiting'e GEÇİŞTE. Ses NSSound ile doğrudan çalınır:
-        // osascript'in sesi kullanıcının bildirim ayarlarına takılıp susabiliyor.
+        // Notify only on the transition INTO waiting (session went idle). Sound
+        // is played directly via NSSound (osascript's sound can be muted by the
+        // user's notification settings). Gated by per-project settings.
         for (id, state) in next where state == .waiting && attention[id] != .waiting {
             let m = meta[id]
-            let title = (m?.project.isEmpty == false) ? m!.project : "Deck"
-            NotificationService.playSound("Glass")
-            NotificationService.notify(title: title,
-                                       subtitle: m?.name ?? "",
-                                       body: "Claude yanıt bekliyor",
-                                       sound: "")
+            let projectName = m?.project ?? ""
+            let settings = settingsForProject(named: projectName)
+            let title = projectName.isEmpty ? "Deck" : projectName
+            if settings.soundOnSessionEnd {
+                NotificationService.playSound(settings.soundName)
+            }
+            if settings.notifyOnSessionEnd {
+                NotificationService.notify(title: title,
+                                           subtitle: m?.name ?? "",
+                                           body: "Claude is waiting for you",
+                                           sound: "")
+            }
         }
         attention = next
         updateBadge()
+    }
+
+    /// Looks up a project's settings by its display name (DECK_PROJECT from the
+    /// hook). Falls back to defaults if not found.
+    private func settingsForProject(named name: String) -> ProjectSettings {
+        projectStore?.projects.first { $0.name == name }?.settings ?? ProjectSettings()
     }
 
     private func updateBadge() {
@@ -763,19 +776,19 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
 
     private func handleExit(key: String, code: Int32) {
         startingClaudeKeys.remove(key)
-        feed(key: key, ansi: "\r\n\u{1B}[2m— bitti (kod \(code)) —\u{1B}[0m\r\n")
+        feed(key: key, ansi: "\r\n\u{1B}[2m— done (code \(code)) —\u{1B}[0m\r\n")
         removeStateFile(key)
         guard let uuid = UUID(uuidString: key) else { return }
         statuses[uuid] = (code == 0) ? .stopped : .crashed(exitCode: code)
 
         // Arka plan komutu: kullanıcıya haber ver, görünmez terminali bırakma.
         if backgroundKeys.remove(key) != nil {
-            let name = backgroundNames.removeValue(forKey: key) ?? "Komut"
+            let name = backgroundNames.removeValue(forKey: key) ?? "Command"
             NotificationService.playSound(code == 0 ? "Glass" : "Basso")
             NotificationService.notify(title: name,
                                        subtitle: "",
-                                       body: code == 0 ? "Arka plan komutu tamamlandı"
-                                                       : "Komut hatayla bitti (kod \(code))",
+                                       body: code == 0 ? "Background command finished"
+                                                       : "Command exited with an error (code \(code))",
                                        sound: "")
             terminalViews.removeValue(forKey: key)
         }

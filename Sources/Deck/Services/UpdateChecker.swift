@@ -103,7 +103,7 @@ final class UpdateChecker: ObservableObject {
 
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else {
-            throw UpdateError("Bağlantı yanıtı alınamadı")
+            throw UpdateError("Could not get a connection response")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw UpdateError("GitHub API \(http.statusCode)")
@@ -124,7 +124,7 @@ final class UpdateChecker: ObservableObject {
         let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
         guard let zipAsset = decoded.assets.first(where: { $0.name.lowercased() == assetName }),
               let zipURL = URL(string: zipAsset.browser_download_url) else {
-            throw UpdateError("Bu release'de Deck.zip bulunamadı")
+            throw UpdateError("Deck.zip not found in this release")
         }
         let publishedAt: Date = {
             guard let str = decoded.published_at else { return Date() }
@@ -148,30 +148,30 @@ final class UpdateChecker: ObservableObject {
     func downloadAndInstall() async {
         guard case .available(let release) = state else { return }
         installLog = []
-        log("İndirme başlatılıyor: \(release.zipURL.absoluteString)")
+        log("Starting download: \(release.zipURL.absoluteString)")
         state = .downloading(0)
         do {
             let zipURL = try await downloadZip(from: release.zipURL)
-            log("İndirme tamam: \(zipURL.lastPathComponent)")
+            log("Download complete: \(zipURL.lastPathComponent)")
             let stagedApp = try unzipStaged(zipURL: zipURL, version: release.version)
-            log("Unzip tamam: \(stagedApp.path)")
+            log("Unzip complete: \(stagedApp.path)")
             try installAndRelaunch(stagedApp: stagedApp)
-            log("Helper script başlatıldı. Deck kapanıyor…")
+            log("Helper script started. Deck is closing…")
             state = .installing
             // Kullanıcı "Yeniden başlatılıyor…" mesajını görebilsin diye
             // kısa bir gecikmeyle terminate iste.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-                self?.log("NSApp.terminate(nil) çağrılıyor")
+                self?.log("Calling NSApp.terminate(nil)")
                 NSApp.terminate(nil)
             }
             // Emniyet: terminate takılırsa (SIGTERM'e direnen PTY vb.)
             // 7 sn sonra hard-exit — helper script böylece devam edebilir.
             DispatchQueue.main.asyncAfter(deadline: .now() + 7.0) { [weak self] in
-                self?.log("Auto-fallback: 7s sonra hâlâ buradayız → exit(0)")
+                self?.log("Auto-fallback: still here after 7s → exit(0)")
                 Darwin.exit(0)
             }
         } catch {
-            log("Hata: \(error.localizedDescription)")
+            log("Error: \(error.localizedDescription)")
             state = .error(error.localizedDescription)
         }
     }
@@ -217,22 +217,22 @@ final class UpdateChecker: ObservableObject {
         proc.waitUntilExit()
         if proc.terminationStatus != 0 {
             let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(),
-                             encoding: .utf8) ?? "ditto unzip başarısız"
+                             encoding: .utf8) ?? "ditto unzip failed"
             throw UpdateError(err.trimmingCharacters(in: .whitespacesAndNewlines))
         }
 
         let entries = try FileManager.default.contentsOfDirectory(atPath: stageDir.path)
         guard let appName = entries.first(where: { $0.hasSuffix(".app") }) else {
-            throw UpdateError("İndirilen pakette Deck.app bulunamadı")
+            throw UpdateError("Deck.app not found in the downloaded package")
         }
         return stageDir.appendingPathComponent(appName)
     }
 
     private func installAndRelaunch(stagedApp: URL) throws {
         let currentApp = Bundle.main.bundleURL
-        log("Mevcut bundle: \(currentApp.path)")
+        log("Current bundle: \(currentApp.path)")
         guard currentApp.path.hasSuffix(".app") else {
-            throw UpdateError("Deck bir .app bundle'ı içinden çalışmıyor (\(currentApp.path)). Güncelleyici sadece kurulu uygulamadan çalışır.")
+            throw UpdateError("Deck isn't running from inside a .app bundle (\(currentApp.path)). The updater only works from the installed app.")
         }
         let pid = ProcessInfo.processInfo.processIdentifier
         let scriptURL = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -261,7 +261,7 @@ final class UpdateChecker: ObservableObject {
         rm -f "$0"
         """
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-        log("Script yazıldı (\(script.count) bytes)")
+        log("Script written (\(script.count) bytes)")
 
         let chmod = Process()
         chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
@@ -307,13 +307,13 @@ extension UpdateChecker {
 
     var buttonTooltip: String {
         switch state {
-        case .idle:                 return "Güncellemeleri kontrol et"
-        case .checking:             return "Kontrol ediliyor…"
-        case .upToDate:             return "Deck \(currentVersion) en güncel sürüm"
-        case .available(let r):     return "Deck \(r.version) mevcut — tıklayıp güncelle"
-        case .downloading(let p):   return "İndiriliyor… %\(Int(p * 100))"
-        case .installing:           return "Yeniden başlatılıyor…"
-        case .error(let m):         return "Güncelleme hatası: \(m)"
+        case .idle:                 return "Check for updates"
+        case .checking:             return "Checking…"
+        case .upToDate:             return "Deck \(currentVersion) is the latest version"
+        case .available(let r):     return "Deck \(r.version) available — click to update"
+        case .downloading(let p):   return "Downloading… \(Int(p * 100))%"
+        case .installing:           return "Restarting…"
+        case .error(let m):         return "Update error: \(m)"
         }
     }
 

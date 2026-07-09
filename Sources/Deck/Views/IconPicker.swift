@@ -93,7 +93,7 @@ struct IconPicker: View {
     @Binding var spec: IconSpec
 
     private enum Mode: String, CaseIterable {
-        case symbols = "Semboller"
+        case symbols = "Symbols"
         case emoji = "Emoji"
     }
 
@@ -193,7 +193,7 @@ struct IconPicker: View {
             .frame(height: 208)
 
             HStack(spacing: 6) {
-                TextField("SF Symbol adı", text: $customSymbol)
+                TextField("SF Symbol name", text: $customSymbol)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
                 if symbolExists(customSymbol) {
@@ -201,7 +201,7 @@ struct IconPicker: View {
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }
-                Button("Kullan") { pickSymbol(customSymbol) }
+                Button("Use") { pickSymbol(customSymbol) }
                     .controlSize(.small)
                     .disabled(!symbolExists(customSymbol))
             }
@@ -268,7 +268,7 @@ struct IconPicker: View {
             .frame(height: 118)
 
             HStack(spacing: 6) {
-                TextField("Emoji yaz", text: $emojiText)
+                TextField("Type an emoji", text: $emojiText)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 13))
                     .onChange(of: emojiText) { _, newValue in
@@ -278,7 +278,7 @@ struct IconPicker: View {
                         spec.symbol = e
                         spec.isEmoji = true
                     }
-                Text("Tek karakter kullanılır")
+                Text("Only one character is used")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }

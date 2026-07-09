@@ -59,7 +59,7 @@ struct ClaudeResumeSheet: View {
             .frame(width: 36, height: 36)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text("Oturumu Sürdür")
+                    Text("Resume Session")
                         .font(.system(size: 15, weight: .semibold))
                     Text(verbatim: countLabel)
                         .font(.system(size: 12, design: .monospaced))
@@ -102,7 +102,7 @@ struct ClaudeResumeSheet: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-            TextField("Ara…", text: $searchQuery)
+            TextField("Search…", text: $searchQuery)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
             if !searchQuery.isEmpty {
@@ -129,21 +129,21 @@ struct ClaudeResumeSheet: View {
         case .loading:
             VStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text("Oturum geçmişi okunuyor…")
+                Text("Reading session history…")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .empty:
             placeholder(icon: "tray",
-                        title: "Önceki oturum yok",
-                        message: "Claude Code bu dizinde henüz bir oturum kaydetmemiş.")
+                        title: "No previous sessions",
+                        message: "Claude Code hasn't saved any sessions in this directory yet.")
         case .loaded(let sessions):
             let filtered = filteredSessions(in: sessions)
             if filtered.isEmpty {
                 placeholder(icon: "magnifyingglass",
-                            title: "Eşleşme yok",
-                            message: "Bu dizinde \"\(searchQuery)\" ile eşleşen oturum bulunamadı.")
+                            title: "No matches",
+                            message: "No sessions matching \"\(searchQuery)\" in this directory.")
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
@@ -184,7 +184,7 @@ struct ClaudeResumeSheet: View {
                 .frame(width: 12, alignment: .center)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
-                Text(session.summary.isEmpty ? "(mesaj yok)" : session.summary)
+                Text(session.summary.isEmpty ? "(no messages)" : session.summary)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(session.summary.isEmpty ? .tertiary : .primary)
                     .lineLimit(1)
@@ -218,9 +218,9 @@ struct ClaudeResumeSheet: View {
                 HStack(alignment: .top, spacing: 16) {
                     Toggle(isOn: $forkSession) {
                         VStack(alignment: .leading, spacing: 1) {
-                            Text("Yeni oturum olarak çatalla")
+                            Text("Fork as new session")
                                 .font(.system(size: 12, weight: .medium))
-                            Text("Orijinal konuşma olduğu gibi kalır.")
+                            Text("The original conversation stays intact.")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.secondary)
                         }
@@ -228,11 +228,11 @@ struct ClaudeResumeSheet: View {
                     .toggleStyle(.switch)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("İsteğe bağlı başlangıç mesajı")
+                        Text("Optional starting message")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .tracking(0.4)
-                        TextField("(boş = sadece devam et)", text: $initialPrompt)
+                        TextField("(empty = just continue)", text: $initialPrompt)
                             .textFieldStyle(.plain)
                             .font(.system(size: 12))
                             .padding(.horizontal, 8)
@@ -255,9 +255,9 @@ struct ClaudeResumeSheet: View {
 
             HStack {
                 Spacer()
-                Button("Vazgeç", role: .cancel) { dismiss() }
+                Button("Cancel", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Sürdür") { confirmResume() }
+                Button("Resume") { confirmResume() }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(selectedID == nil)
@@ -305,7 +305,7 @@ struct ClaudeResumeSheet: View {
     private func relativeDate(_ date: Date) -> String {
         let fmt = RelativeDateTimeFormatter()
         fmt.unitsStyle = .full
-        fmt.locale = Locale(identifier: "tr_TR")
+        fmt.locale = Locale(identifier: "en_US")
         return fmt.localizedString(for: date, relativeTo: Date())
     }
 

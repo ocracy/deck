@@ -217,19 +217,19 @@ private struct BrowserPane: View {
         HStack(spacing: 12) {
             navIcon(systemName: "chevron.left",
                     enabled: model.canGoBack,
-                    help: "Geri") {
+                    help: "Back") {
                 model.goBack()
             }
 
             navIcon(systemName: "chevron.right",
                     enabled: model.canGoForward,
-                    help: "İleri") {
+                    help: "Forward") {
                 model.goForward()
             }
 
             navIcon(systemName: model.isLoading ? "xmark" : "arrow.clockwise",
                     enabled: true,
-                    help: model.isLoading ? "Yüklemeyi durdur" : "Sayfayı yenile",
+                    help: model.isLoading ? "Stop loading" : "Reload page",
                     tint: model.isLoading ? .orange : .accentColor) {
                 model.reload()
             }
@@ -241,7 +241,7 @@ private struct BrowserPane: View {
 
             navIcon(systemName: model.isMobile ? "iphone" : "laptopcomputer",
                     enabled: true,
-                    help: model.isMobile ? "Masaüstü görünüme geç" : "Mobil görünüme geç",
+                    help: model.isMobile ? "Switch to desktop view" : "Switch to mobile view",
                     tint: model.isMobile ? .accentColor : .secondary) {
                 model.setMobile(!model.isMobile)
             }
@@ -268,7 +268,7 @@ private struct BrowserPane: View {
                 .foregroundStyle(Color.accentColor)
             }
             .buttonStyle(.plain)
-            .help("Geçerli URL'yi Google Chrome'da aç")
+            .help("Open the current URL in Google Chrome")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
