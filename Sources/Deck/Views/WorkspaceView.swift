@@ -69,9 +69,7 @@ struct WorkspaceView: View {
 
             newClaudeButton
             newTerminalMenu
-            if !webItems.isEmpty {
-                webMenu
-            }
+            webMenu
         }
         .padding(.horizontal, 10)
         .frame(height: 40)
@@ -190,11 +188,19 @@ struct WorkspaceView: View {
 
     private var webMenu: some View {
         Menu {
-            ForEach(webItems) { item in
-                Button {
-                    openWebTab(item)
-                } label: {
-                    Label(item.name, systemImage: "globe")
+            Button {
+                openBlankWebTab()
+            } label: {
+                Label("New Blank Tab", systemImage: "plus")
+            }
+            if !webItems.isEmpty {
+                Divider()
+                ForEach(webItems) { item in
+                    Button {
+                        openWebTab(item)
+                    } label: {
+                        Label(item.name, systemImage: "globe")
+                    }
                 }
             }
         } label: {
@@ -210,6 +216,12 @@ struct WorkspaceView: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Open a web tab")
+    }
+
+    /// Kayıtlı bir web öğesine bağlı olmayan, boş (about:blank) web sekmesi açar.
+    private func openBlankWebTab() {
+        let tab = WorkspaceTab(kind: .web, title: "Web", url: "about:blank")
+        workspace.addTab(tab, to: project.id, activate: true)
     }
 
     // MARK: - Pill
@@ -448,8 +460,9 @@ struct WorkspaceView: View {
             case .claude:
                 ClaudeTabLauncher.finishClose(tab, projectID: project.id, tabStore: tabStore, pm: pm)
             case .web:
-                // Gizli oturum: modeli düşür ki tekrar açılış sıfırdan (temiz) gelsin.
-                if tab.incognito { browser.remove(forKey: wkey) }
+                // Gizli oturum ya da kayıtlı öğeye bağlı olmayan boş sekme:
+                // modeli düşür (temiz açılış / bellek sızıntısı olmasın).
+                if tab.incognito || tab.itemID == nil { browser.remove(forKey: wkey) }
             case .service:
                 break  // servis prosesi/PTY yaşamaya devam eder
             case .shell, .oneshot:
