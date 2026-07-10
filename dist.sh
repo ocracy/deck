@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # build.sh ile senkron tut.
-VERSION="0.6.1"
+VERSION="0.6.2"
 APP_NAME="Deck"
 APP="${APP_NAME}.app"
 
