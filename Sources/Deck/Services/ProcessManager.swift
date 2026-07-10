@@ -399,22 +399,23 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
 
     // MARK: - Kapanış
 
-    /// Güncelleme öncesi hızlı ve TAM temizlik: timer/monitor/watcher'ları durdur,
-    /// TÜM PTY süreçlerini (tmux client'lar dahil) hemen öldür. Böylece açık
-    /// SwiftTerm view'ları NSApp.terminate()'i asmaz ve exit(0) fallback'i
-    /// (macOS "unexpectedly quit" dialog'unun nedeni) hiç devreye girmez.
-    /// tmux oturumları server'da yaşamaya devam eder — client SIGKILL yalnız
-    /// bağlantıyı düşürür, oturumu değil.
+    /// Güncelleme öncesi hızlı temizlik: timer/monitor/watcher'ları durdur ve
+    /// yalnız tmux DESTEKLİ OLMAYAN (servis/shell/oneshot) PTY'leri öldür.
+    /// Claude (tmux-backed) terminallere DOKUNMA — killpg(SIGKILL) bazı
+    /// makinelerde (server henüz daemonize olmadan client'ın process grubundayken)
+    /// tmux server'ını da düşürüp oturumları yok edebiliyor. Bunlar uygulama
+    /// kapanınca doğal SIGHUP ile detach olur, oturum server'da yaşar ve sonraki
+    /// açılışta reattach edilir.
     func prepareForShutdown() {
         titleTimer?.invalidate(); titleTimer = nil
         statePollTimer?.invalidate(); statePollTimer = nil
         stateWatcher?.cancel(); stateWatcher = nil
         if let m = keyMonitor { NSEvent.removeMonitor(m); keyMonitor = nil }
         if let m = scrollMonitor { NSEvent.removeMonitor(m); scrollMonitor = nil }
-        for view in terminalViews.values where view.process.running {
-            _ = killpg(view.process.shellPid, SIGKILL)
+        for (key, view) in terminalViews where view.tmuxSession == nil {
+            if view.process.running { _ = killpg(view.process.shellPid, SIGKILL) }
+            terminalViews.removeValue(forKey: key)
         }
-        terminalViews.removeAll()
     }
 
     /// Uygulama çıkarken senkron temizlik. tmux destekli terminaller HARİÇ:
