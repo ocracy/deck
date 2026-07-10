@@ -19,7 +19,10 @@ final class WorkspaceStore: ObservableObject {
     func addTab(_ tab: WorkspaceTab, to projectID: UUID, activate: Bool) {
         var list = tabs[projectID] ?? []
         if list.contains(where: { $0.id == tab.id }) {
-            if activate { activeTab[projectID] = tab.id }
+            if activate {
+                activeTab[projectID] = tab.id
+                openWorkspace(projectID, true)
+            }
             return
         }
         list.append(tab)
@@ -27,6 +30,8 @@ final class WorkspaceStore: ObservableObject {
         if activate || activeTab[projectID] == nil {
             activeTab[projectID] = tab.id
         }
+        // Sekme eklenince içerik görünsün (masaüstünden workspace'e geç).
+        if activate { openWorkspace(projectID, true) }
     }
 
     func closeTab(_ tabID: UUID, in projectID: UUID) {

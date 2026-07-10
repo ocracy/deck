@@ -44,6 +44,19 @@ struct ServicePanelView: View {
 
     private var bar: some View {
         HStack(spacing: 8) {
+            // Home: masaüstü ikonlarına dön (servis panelini kapat).
+            Button {
+                workspace.openServicePanel(project.id, false)
+            } label: {
+                Image(systemName: "house.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 26, height: 26)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.10)))
+            }
+            .buttonStyle(.plain)
+            .help("Desktop (icons)")
+
             // "Servisler" başlığı: tıklanınca tüm servislere genel bakış.
             Button {
                 overview = true

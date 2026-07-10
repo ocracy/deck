@@ -17,14 +17,20 @@ struct WorkspaceView: View {
 
     private var tabs: [WorkspaceTab] { workspace.tabs(for: project.id) }
     private var activeID: UUID? { workspace.activeTab[project.id] }
+    private var isOpen: Bool { workspace.workspaceOpen[project.id] ?? false }
 
     var body: some View {
+        // Sekme çubuğu HER ZAMAN üstte; içerik yalnız bir sekme açıkken görünür,
+        // kapalıyken alt alan şeffaf kalıp arkadaki masaüstünü (CanvasView) gösterir.
         VStack(spacing: 0) {
             tabBar
-            Divider()
-            content
+            if isOpen {
+                Divider()
+                content
+                    .background(Color(NSColor.windowBackgroundColor))
+            }
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .frame(maxWidth: .infinity, alignment: .top)
         // Adopt edilen (tmux'tan geri gelen) Claude sekmelerini reattach et.
         .onChange(of: tabs.map(\.id), initial: true) { _, _ in
             ensureClaudeTabsStarted()
@@ -35,10 +41,21 @@ struct WorkspaceView: View {
 
     private var tabBar: some View {
         HStack(spacing: 8) {
-            Image(systemName: "rectangle.on.rectangle")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.trailing, 2)
+            // Home: masaüstü ikonlarına dön (workspace'i kapat).
+            Button {
+                workspace.openWorkspace(project.id, false)
+            } label: {
+                Image(systemName: "house.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(isOpen ? Color.secondary : Color.accentColor)
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isOpen ? Color.secondary.opacity(0.10) : Color.accentColor.opacity(0.18))
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("Desktop (icons)")
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -307,6 +324,7 @@ struct WorkspaceView: View {
         .onTapGesture {
             if !isRenaming {
                 workspace.select(tab.id, in: project.id)
+                workspace.openWorkspace(project.id, true)   // home'dayken içerik görünsün
             }
         }
         .help(pillTitle(tab))

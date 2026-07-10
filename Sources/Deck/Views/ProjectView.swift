@@ -115,7 +115,7 @@ struct ProjectView: View {
         VStack(spacing: 0) {
             topBar
             Divider().overlay(Color.white.opacity(0.06))
-            ZStack {
+            ZStack(alignment: .top) {
                 CanvasView(project: project,
                            keyboardEnabled: isActive && !isWorkspaceOpen && !isServicePanelOpen,
                            store: store,
@@ -123,18 +123,20 @@ struct ProjectView: View {
                            workspace: workspace,
                            tabStore: tabStore,
                            skillStore: skillStore)
+                    .padding(.top, 40)   // sabit sekme çubuğunun altında kalsın
                 // Servis paneli: yalnız servis terminalleri, stop/restart kontrolleriyle.
                 ServicePanelView(project: project, workspace: workspace, pm: pm)
                     .opacity(isServicePanelOpen ? 1 : 0)
                     .allowsHitTesting(isServicePanelOpen)
-                // Workspace her zaman mount kalır; terminal/web içerikleri yaşar.
+                // Sekme çubuğu HER ZAMAN üstte (home + sekmeler). İçerik yalnız bir
+                // sekme açıkken görünür; kapalıyken bar altı masaüstünü gösterir.
                 WorkspaceView(project: project,
                               workspace: workspace,
                               pm: pm,
                               tabStore: tabStore,
                               browser: browserManager)
-                    .opacity(isWorkspaceOpen ? 1 : 0)
-                    .allowsHitTesting(isWorkspaceOpen)
+                    .opacity(isServicePanelOpen ? 0 : 1)
+                    .allowsHitTesting(!isServicePanelOpen)
             }
         }
         .background(Color(hex: "#101018"))
@@ -225,42 +227,33 @@ struct ProjectView: View {
             .buttonStyle(.plain)
             .help("Back to projects")
 
-            // Proje ikonu + adı: tıklayınca masaüstüne (ikonlara) dön.
-            Button {
-                workspace.openWorkspace(project.id, false)
-                workspace.openServicePanel(project.id, false)
-            } label: {
-                HStack(spacing: 8) {
-                    IconView(spec: project.icon, size: 24)
-                    Text(project.name)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                    if isWorkspaceOpen || isServicePanelOpen {
-                        Image(systemName: "house.fill")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Back to desktop")
+            IconView(spec: project.icon, size: 24)
+            Text(project.name)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
 
             Spacer()
 
-            if runningServiceCount > 0 {
+            // Servis paneli aç/kapat (⌘J). Çalışan servis sayısı burada.
+            Button {
+                workspace.openServicePanel(project.id, !isServicePanelOpen)
+            } label: {
                 HStack(spacing: 5) {
-                    Circle().fill(Color.green).frame(width: 7, height: 7)
-                    Text("\(runningServiceCount) running")
+                    Image(systemName: "bolt.horizontal.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(runningServiceCount > 0 ? "Services · \(runningServiceCount)" : "Services")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.green)
                 }
-                .padding(.trailing, 4)
+                .foregroundStyle(isServicePanelOpen ? Color.accentColor : (runningServiceCount > 0 ? .green : .secondary))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule().fill(isServicePanelOpen ? Color.accentColor.opacity(0.18)
+                                   : (runningServiceCount > 0 ? Color.green.opacity(0.12) : Color.secondary.opacity(0.10)))
+                )
             }
-
-            // Workspace ↔ Servisler geçişi burada — sekme hizasında değil,
-            // proje barında (⌘B / ⌘J kısayollarıyla).
-            PanelSwitcher(projectID: project.id, workspace: workspace)
+            .buttonStyle(.plain)
+            .help("Toggle service panel (⌘J)")
 
             Button {
                 showSettings = true
