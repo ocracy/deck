@@ -49,6 +49,7 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func select(_ tabID: UUID, in projectID: UUID) {
+        guard activeTab[projectID] != tabID else { return }   // aynı sekme: gereksiz re-render yok
         guard tabs(for: projectID).contains(where: { $0.id == tabID }) else { return }
         activeTab[projectID] = tabID
     }

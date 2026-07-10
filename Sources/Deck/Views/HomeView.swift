@@ -23,6 +23,8 @@ struct HomeView: View {
     @State private var showDeleteAlert = false
     @State private var hoveredCardID: UUID?
     @State private var showUpdatePopover = false
+    @State private var showTmuxPopover = false
+    @State private var tmuxCount = 0
     @ObservedObject private var updater = UpdateChecker.shared
 
     private static let columns = [GridItem(.adaptive(minimum: 160, maximum: 160), spacing: 20, alignment: .top)]
@@ -85,8 +87,9 @@ struct HomeView: View {
 
     private var updateButton: some View {
         VStack {
-            HStack {
+            HStack(spacing: 8) {
                 Spacer()
+                tmuxButton
                 Button {
                     showUpdatePopover = true
                 } label: {
@@ -112,6 +115,39 @@ struct HomeView: View {
             Spacer()
         }
         .padding(14)
+    }
+
+    // MARK: - tmux göstergesi (sağ üst)
+
+    private var tmuxButton: some View {
+        Button {
+            showTmuxPopover = true
+        } label: {
+            Image(systemName: "rectangle.stack")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.secondary)
+                .frame(width: 30, height: 30)
+                .background(Circle().fill(Color.white.opacity(0.07)))
+                .overlay(alignment: .topTrailing) {
+                    if tmuxCount > 0 {
+                        Text(verbatim: "\(tmuxCount)")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .frame(minWidth: 14, minHeight: 14)
+                            .background(Capsule().fill(Color.blue))
+                            .offset(x: 5, y: -4)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .help("Açık tmux oturumları")
+        .onAppear { tmuxCount = TmuxService.rawSessionNames().count }
+        .popover(isPresented: $showTmuxPopover, arrowEdge: .bottom) {
+            TmuxMonitorView(projects: store.projects) {
+                tmuxCount = TmuxService.rawSessionNames().count
+            }
+        }
     }
 
     // MARK: - Boş durum

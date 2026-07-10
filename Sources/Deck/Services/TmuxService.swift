@@ -80,8 +80,22 @@ enum TmuxService {
         run(["has-session", "-t", name]).status == 0
     }
 
+    /// Sokette kayıtlı HAM oturum adları — Deck etiketi olsun olmasın hepsi.
+    /// `listSessions` yalnız `@deck_project` dolu olanları verir; burada etiketsiz
+    /// orphan'lar da görünür (sistemi şişiren gerçek toplam).
+    static func rawSessionNames() -> [String] {
+        let r = run(["list-sessions", "-F", "#{session_name}"])
+        guard r.status == 0 else { return [] }
+        return r.out.split(separator: "\n").map(String.init)
+    }
+
     static func kill(_ name: String) {
         _ = run(["kill-session", "-t", name])
+    }
+
+    /// Tüm Deck tmux sunucusunu kapatır (tüm oturumlar ölür). Toplu temizlik için.
+    static func killServer() {
+        _ = run(["kill-server"])
     }
 
     static func setOption(_ session: String, key: String, value: String) {

@@ -316,17 +316,22 @@ struct WorkspaceView: View {
                         lineWidth: 0.5)
         )
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
+        // simultaneousGesture: tek-tık seçim ANINDA çalışır; SwiftUI çift-tık
+        // zaman aşımını beklemez (aksi halde onTapGesture+onTapGesture(count:2)
+        // birlikteyken seçim ~250ms gecikir ve geçiş "yavaş" hissedilir).
+        .simultaneousGesture(TapGesture(count: 2).onEnded {
             if tab.kind == .claude, !isRenaming {
                 startRename(tab)
             }
-        }
-        .onTapGesture {
+        })
+        .simultaneousGesture(TapGesture().onEnded {
             if !isRenaming {
                 workspace.select(tab.id, in: project.id)
-                workspace.openWorkspace(project.id, true)   // home'dayken içerik görünsün
+                if workspace.workspaceOpen[project.id] != true {
+                    workspace.openWorkspace(project.id, true)   // home'dayken içerik görünsün
+                }
             }
-        }
+        })
         .help(pillTitle(tab))
     }
 
