@@ -20,6 +20,7 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
     @Published var paneTitles: [String: String] = [:]
     weak var projectStore: ProjectStore?
     weak var tabStore: ClaudeTabStore?
+    weak var workspaceStore: WorkspaceStore?
 
     private var terminalViews: [String: DeckTerminalView] = [:]
     private var pendingRestart: [UUID: (item: CanvasItem, project: Project)] = [:]
@@ -663,8 +664,11 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
                 NotificationService.playSound(settings.soundName)
             }
             if settings.notifyOnSessionEnd {
+                // Canlı sekme adını (kullanıcı yeniden adlandırdıysa) tercih et;
+                // hook'un yazdığı `name` spawn anındaki DECK_TAB_NAME'de donmuştur.
+                let liveName = workspaceStore?.displayName(forTab: id)
                 NotificationService.notify(title: title,
-                                           subtitle: m?.name ?? "",
+                                           subtitle: liveName ?? m?.name ?? "",
                                            body: "Claude is waiting for you",
                                            sound: "")
             }

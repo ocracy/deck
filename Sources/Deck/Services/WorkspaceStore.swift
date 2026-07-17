@@ -16,6 +16,19 @@ final class WorkspaceStore: ObservableObject {
         tabs[projectID] ?? []
     }
 
+    /// Herhangi bir projedeki `tabID`'nin güncel görünen adını döndürür
+    /// (kullanıcı yeniden adlandırdıysa `customName`/`title`). Bildirimler
+    /// donmuş `DECK_TAB_NAME` yerine bunu kullanır. Bulunamazsa nil.
+    func displayName(forTab tabID: UUID) -> String? {
+        for list in tabs.values {
+            if let tab = list.first(where: { $0.id == tabID }) {
+                if let name = tab.customName, !name.isEmpty { return name }
+                return tab.title
+            }
+        }
+        return nil
+    }
+
     func addTab(_ tab: WorkspaceTab, to projectID: UUID, activate: Bool) {
         var list = tabs[projectID] ?? []
         if list.contains(where: { $0.id == tab.id }) {

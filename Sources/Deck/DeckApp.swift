@@ -121,6 +121,7 @@ struct DeckApp: App {
         appDelegate.projectStore = projectStore
         processManager.projectStore = projectStore
         processManager.tabStore = tabStore
+        processManager.workspaceStore = workspaceStore
 
         TmuxService.ensureConfig()
         DispatchQueue.global(qos: .utility).async {
