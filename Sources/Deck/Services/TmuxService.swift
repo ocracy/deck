@@ -53,24 +53,27 @@ enum TmuxService {
         let customName: String?
         let claudeSID: String?
         let attached: Bool
+        let lastUsed: Date?
     }
 
     /// Deck'e ait tüm oturumlar (`@deck_project` dolu olanlar).
     static func listSessions() -> [Session] {
-        let fmt = "#{session_name}\t#{@deck_project}\t#{@deck_num}\t#{@deck_name}\t#{@claude_sid}\t#{session_attached}"
+        let fmt = "#{session_name}\t#{@deck_project}\t#{@deck_num}\t#{@deck_name}\t#{@claude_sid}\t#{session_attached}\t#{@deck_used}"
         let r = run(["list-sessions", "-F", fmt])
         guard r.status == 0 else { return [] }
         var result: [Session] = []
         for line in r.out.split(separator: "\n") {
             let f = line.components(separatedBy: "\t")
             guard f.count >= 6, !f[1].isEmpty else { continue }
+            let usedEpoch = f.count > 6 ? TimeInterval(f[6]) : nil
             result.append(Session(
                 name: f[0],
                 projectID: f[1],
                 number: Int(f[2]) ?? 0,
                 customName: f[3].isEmpty ? nil : f[3],
                 claudeSID: f[4].isEmpty ? nil : f[4],
-                attached: f[5] != "0"
+                attached: f[5] != "0",
+                lastUsed: usedEpoch.map { Date(timeIntervalSince1970: $0) }
             ))
         }
         return result

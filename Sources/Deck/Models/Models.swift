@@ -204,10 +204,11 @@ struct WorkspaceTab: Identifiable, Equatable {
     var number: Int?            // claude sekme numarası ("Claude N")
     var customName: String?     // kullanıcının verdiği ad (pane title'ı ezer)
     var incognito: Bool = false // web: her açılışta temiz oturum
+    var lastUsedAt: Date?       // sekmenin en son öne getirildiği an (tmux @deck_used ile kalıcı)
 
     init(id: UUID = UUID(), kind: TabKind, title: String, tmuxSession: String? = nil,
          itemID: UUID? = nil, url: String? = nil, number: Int? = nil, customName: String? = nil,
-         incognito: Bool = false) {
+         incognito: Bool = false, lastUsedAt: Date? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -217,6 +218,7 @@ struct WorkspaceTab: Identifiable, Equatable {
         self.number = number
         self.customName = customName
         self.incognito = incognito
+        self.lastUsedAt = lastUsedAt
     }
 }
 

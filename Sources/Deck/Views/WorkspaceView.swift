@@ -84,6 +84,7 @@ struct WorkspaceView: View {
                 return true
             }
 
+            if tabs.count > 1 { sortButton }
             newClaudeButton
             newTerminalMenu
             webMenu
@@ -91,6 +92,21 @@ struct WorkspaceView: View {
         .padding(.horizontal, 10)
         .frame(height: 40)
         .background(.ultraThinMaterial)
+    }
+
+    /// Sekmeleri son kullanıma göre sırala (en yeni en solda).
+    private var sortButton: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.18)) { workspace.sortByRecent(project.id) }
+        } label: {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 26)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.10)))
+        }
+        .buttonStyle(.plain)
+        .help("Sekmeleri son kullanıma göre sırala (en yeni solda)")
     }
 
     private var closedTabs: [ClaudeTabStore.ClosedTab] {
@@ -332,8 +348,42 @@ struct WorkspaceView: View {
                 }
             }
         })
-        .help(pillTitle(tab))
+        .help(pillHelp(tab))
+        .contextMenu { pillMenu(tab) }
     }
+
+    /// Sağ tık menüsü: en üstte son kullanım bilgisi (pasif), altında hızlı aksiyonlar.
+    @ViewBuilder
+    private func pillMenu(_ tab: WorkspaceTab) -> some View {
+        Text(lastUsedLabel(tab)).font(.caption)
+        Divider()
+        if tab.kind == .claude {
+            Button("Yeniden adlandır…") { startRename(tab) }
+        }
+        Button("Son kullanıma göre sırala") {
+            withAnimation(.easeOut(duration: 0.18)) { workspace.sortByRecent(project.id) }
+        }
+        Divider()
+        Button("Sekmeyi kapat") { close(tab) }
+    }
+
+    /// Hover ipucu: "Ad — Son kullanım: 5 dk önce".
+    private func pillHelp(_ tab: WorkspaceTab) -> String {
+        "\(pillTitle(tab)) — \(lastUsedLabel(tab))"
+    }
+
+    /// "Son kullanım: 5 dk önce" / "Son kullanım: bilinmiyor".
+    private func lastUsedLabel(_ tab: WorkspaceTab) -> String {
+        guard let used = tab.lastUsedAt else { return "Son kullanım: bilinmiyor" }
+        return "Son kullanım: \(Self.relativeFormatter.localizedString(for: used, relativeTo: Date()))"
+    }
+
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.locale = Locale(identifier: "tr")
+        f.unitsStyle = .full
+        return f
+    }()
 
     /// Claude: attention noktası (waiting=kırmızı, working=yeşil); servis: durum rengi.
     private func pillDot(_ tab: WorkspaceTab) -> Color? {

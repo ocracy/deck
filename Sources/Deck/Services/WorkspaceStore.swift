@@ -34,6 +34,7 @@ final class WorkspaceStore: ObservableObject {
         if list.contains(where: { $0.id == tab.id }) {
             if activate {
                 activeTab[projectID] = tab.id
+                touch(tab.id, in: projectID)
                 openWorkspace(projectID, true)
             }
             return
@@ -42,6 +43,7 @@ final class WorkspaceStore: ObservableObject {
         tabs[projectID] = list
         if activate || activeTab[projectID] == nil {
             activeTab[projectID] = tab.id
+            touch(tab.id, in: projectID)
         }
         // Sekme eklenince içerik görünsün (masaüstünden workspace'e geç).
         if activate { openWorkspace(projectID, true) }
@@ -65,6 +67,38 @@ final class WorkspaceStore: ObservableObject {
         guard activeTab[projectID] != tabID else { return }   // aynı sekme: gereksiz re-render yok
         guard tabs(for: projectID).contains(where: { $0.id == tabID }) else { return }
         activeTab[projectID] = tabID
+        touch(tabID, in: projectID)
+    }
+
+    /// Sekmeyi "az önce kullanıldı" olarak damgalar (öne getirme anında). Zamanı
+    /// belleğe yazar ve Claude sekmelerinde tmux `@deck_used` opsiyonuna kaydeder
+    /// ki uygulama yeniden açıldığında (adoptTmuxSessions) korunsun.
+    func touch(_ tabID: UUID, in projectID: UUID) {
+        guard var list = tabs[projectID],
+              let idx = list.firstIndex(where: { $0.id == tabID }) else { return }
+        let now = Date()
+        list[idx].lastUsedAt = now
+        tabs[projectID] = list
+        if let session = list[idx].tmuxSession {
+            let epoch = String(Int(now.timeIntervalSince1970))
+            Task.detached { TmuxService.setOption(session, key: "@deck_used", value: epoch) }
+        }
+    }
+
+    /// Sekmeleri son kullanıma göre sıralar: en yeni en solda. Zamanı olmayanlar
+    /// (hiç seçilmemiş / eski oturumlar) sona düşer, aralarında mevcut sıra korunur.
+    func sortByRecent(_ projectID: UUID) {
+        guard var list = tabs[projectID], list.count > 1 else { return }
+        list = list.enumerated().sorted { a, b in
+            let ta = a.element.lastUsedAt, tb = b.element.lastUsedAt
+            switch (ta, tb) {
+            case let (x?, y?): return x > y
+            case (_?, nil):    return true
+            case (nil, _?):    return false
+            case (nil, nil):   return a.offset < b.offset   // stabil
+            }
+        }.map(\.element)
+        tabs[projectID] = list
     }
 
     /// Sürükle-bırak sıralama: `tabID`'yi `targetID`'nin önüne taşır;
@@ -121,7 +155,8 @@ final class WorkspaceStore: ObservableObject {
                                                title: session.customName ?? "Claude \(session.number)",
                                                tmuxSession: session.name,
                                                number: session.number,
-                                               customName: session.customName)
+                                               customName: session.customName,
+                                               lastUsedAt: session.lastUsed)
                         list.append(tab)
                     }
                 }
