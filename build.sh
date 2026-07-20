@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # dist.sh ile senkron tut — tek sürüm kaynağı.
-VERSION="0.6.5"
+VERSION="0.6.6"
 
 APP_NAME="Deck"
 APP="${APP_NAME}.app"

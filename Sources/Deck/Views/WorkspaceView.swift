@@ -359,6 +359,7 @@ struct WorkspaceView: View {
         Divider()
         if tab.kind == .claude {
             Button("Yeniden adlandır…") { startRename(tab) }
+            Button("Kopyala (branch)") { duplicateTab(tab) }
         }
         Button("Son kullanıma göre sırala") {
             withAnimation(.easeOut(duration: 0.18)) { workspace.sortByRecent(project.id) }
@@ -580,5 +581,37 @@ struct WorkspaceView: View {
     private func cancelRename() {
         renamingTabID = nil
         renameText = ""
+    }
+
+    // MARK: - Kopyala (branch)
+
+    /// Sekmenin Claude oturumunu `/branch` ile dallandırıp yeni bir sekmede açar.
+    /// Adı "<orijinal> /branch" olur. Kaynağın SID'i önce bellekten, yoksa tmux
+    /// `@claude_sid`'ten alınır; SID yoksa (henüz kaydedilmemiş oturum) sessizce çıkar.
+    private func duplicateTab(_ tab: WorkspaceTab) {
+        guard tab.kind == .claude else { return }
+        let branchName = "\(pillTitle(tab)) /branch"
+        if let sid = pm.claudeSID(for: tab.id) {
+            openBranch(sid: sid, name: branchName)
+            return
+        }
+        guard let session = tab.tmuxSession else { return }
+        Task {
+            let sid = await Task.detached(priority: .userInitiated) {
+                TmuxService.listSessions().first { $0.name == session }?.claudeSID
+            }.value
+            guard let sid else { return }   // dallanacak oturum yok
+            openBranch(sid: sid, name: branchName)
+        }
+    }
+
+    private func openBranch(sid: String, name: String) {
+        ClaudeTabLauncher.open(project: project,
+                               workspace: workspace,
+                               tabStore: tabStore,
+                               pm: pm,
+                               resume: ClaudeResumeOptions(sessionID: sid),
+                               customName: name,
+                               initialCommand: "/branch")
     }
 }

@@ -322,6 +322,13 @@ final class ProcessManager: NSObject, ObservableObject, LocalProcessTerminalView
             afterMain(1.6) { [weak self] in
                 self?.sendInput(key: key, data: Array(ic.utf8))
             }
+        } else if resume != nil, let ic = trimmedInitial, !ic.isEmpty {
+            // Sürdürülen oturum (ör. "Kopyala → /branch"): geçmiş yüklenip TUI
+            // hazır olunca komutu Enter'la (0x0D) gönder. Resume yavaş olabildiği
+            // için gecikme daha uzun; tek gönderim (çoklu /branch dallanmasın).
+            afterMain(3.0) { [weak self] in
+                self?.sendInput(key: key, data: Array(ic.utf8) + [0x0D])
+            }
         }
 
         if TmuxService.isAvailable {
